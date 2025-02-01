@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aqara Smart Home</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
+        .device { margin: 10px; padding: 15px; border: 1px solid #ccc; display: inline-block; }
+        button { padding: 10px; margin-top: 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <h1>Aqara Smart Home Control</h1>
+    <div id="devices">
+        <p>Loading devices...</p>
+    </div>
+
+    <script>
+        async function fetchDevices() {
+            try {
+                let response = await fetch('/api/aqara/devices'); // Secure backend call
+                let devices = await response.json();
+
+                let devicesHTML = '';
+                devices.forEach(device => {
+                    devicesHTML += `
+                        <div class="device">
+                            <h3>${device.name}</h3>
+                            <p>Status: <strong>${device.status ? 'ON' : 'OFF'}</strong></p>
+                            <button onclick="toggleDevice('${device.id}', ${!device.status})">
+                                Turn ${device.status ? 'Off' : 'On'}
+                            </button>
+                        </div>
+                    `;
+                });
+
+                document.getElementById('devices').innerHTML = devicesHTML;
+            } catch (error) {
+                document.getElementById('devices').innerHTML = '<p>Error loading devices.</p>';
+                console.error(error);
+            }
+        }
+
+        async function toggleDevice(deviceId, newState) {
+            try {
+                await fetch(`/api/aqara/devices/${deviceId}/toggle`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ state: newState })
+                });
+                fetchDevices();
+            } catch (error) {
+                alert('Failed to toggle device.');
+                console.error(error);
+            }
+        }
+
+        fetchDevices();
+    </script>
+
+</body>
+</html>
