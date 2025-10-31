@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Halloween VR Zone 🎃</title>
+    <!-- A-Frame Library -->
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  </head>
+
+  <body>
+    <!-- Main VR Scene -->
+    <a-scene>
+      <!-- Background color or sky -->
+      <a-sky color="#0a0a0a"></a-sky>
+
+      <!-- Ground -->
+      <a-plane rotation="-90 0 0" width="30" height="30" color="#111"></a-plane>
+
+      <!-- Lighting -->
+      <a-entity light="type: ambient; color: #333"></a-entity>
+      <a-entity light="type: point; intensity: 1.2; distance: 20; color: orange" position="0 5 5"></a-entity>
+
+      <!-- Camera (user’s view) -->
+      <a-entity id="camera" camera look-controls position="0 1.6 3"></a-entity>
+
+      <!-- Spooky Pumpkin Character -->
+      <a-entity
+        gltf-model="#pumpkinModel"
+        position="0 0 -2"
+        scale="1 1 1"
+        rotation="0 180 0"
+      ></a-entity>
+
+      <!-- Asset Management -->
+      <a-assets>
+        <!-- Replace the src with your .glb model file -->
+        <a-asset-item id="pumpkinModel" src="your-scary-character.glb"></a-asset-item>
+      </a-assets>
+    </a-scene>
+  </body>
+</html>
+
+
+
