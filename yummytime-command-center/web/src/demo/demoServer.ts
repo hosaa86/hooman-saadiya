@@ -2,7 +2,7 @@
  * In-browser stand-in for the backend, used by the shareable demo build (VITE_DEMO=1).
  * Same routes and WebSocket messages as the real server, with simulated mock devices.
  */
-import type { Alert, Category, Device, EventRow, Location, Schedule, ServerMessage } from '../types';
+import type { Alert, Category, Contact, Deviation, Device, EventRow, Location, Rule, Schedule, ServerMessage } from '../types';
 
 const FIELD_OPTIONS: Record<Category, Record<string, string>> = {
   camera: { live: 'Live thumbnail', rec: 'REC badge', status: 'Status dot' },
@@ -64,7 +64,42 @@ function addAlert(severity: Alert['severity'], title: string, message: string) {
     createdAt: now(), deviceId: null, escalationStep: 0, lastNotification: severity === 'critical' ? 'Calling Hooman (1/4) — demo, nobody is called' : null, resolvedAt: null,
   };
   alerts.unshift(a);
+  alertLog.unshift(a);
   emit({ type: 'alert', alert: a });
+}
+
+// ---- Alerts tab & reports (example data) ----
+const alertLog: Alert[] = [];
+let contacts: Contact[] = [
+  { id: 1, name: 'Hooman (example)', phone: '+4740000001', whatsapp: null, escalationOrder: 1, waitMinutes: 5, receiveWarnings: true, enabled: true },
+  { id: 2, name: 'Daglig leder (example)', phone: '+4740000002', whatsapp: null, escalationOrder: 2, waitMinutes: 5, receiveWarnings: false, enabled: true },
+];
+let rules: Rule[] = [
+  { id: 1, name: 'Smoke detected', enabled: true, events: ['smoke'], armedOnly: false, recordCameras: true, openLiveView: true, alertSeverity: 'critical', escalateToCritical: false, sortOrder: 1 },
+  { id: 2, name: 'Night intrusion', enabled: true, events: ['door_open', 'vibration'], armedOnly: true, recordCameras: true, openLiveView: true, alertSeverity: 'critical', escalateToCritical: false, sortOrder: 2 },
+  { id: 3, name: 'Temperature out of range', enabled: true, events: ['temp_out_of_range'], armedOnly: false, recordCameras: false, openLiveView: false, alertSeverity: 'warning', escalateToCritical: true, sortOrder: 3 },
+  { id: 4, name: 'Device offline / low battery', enabled: true, events: ['offline', 'low_battery'], armedOnly: false, recordCameras: false, openLiveView: false, alertSeverity: 'warning', escalateToCritical: false, sortOrder: 4 },
+];
+const TRIGGERS = ['smoke', 'door_open', 'vibration', 'temp_out_of_range', 'offline', 'low_battery'];
+const sensors = () => devices.filter((d) => d.kind === 'temperature');
+const deviations: Deviation[] = [
+  { id: 1, deviceId: 7, deviceName: 'Kjøleskap 2', startedAt: new Date(Date.now() - 2 * 864e5).toISOString(), endedAt: new Date(Date.now() - 2 * 864e5 + 50 * 60e3).toISOString(), peakValueC: 5.4, minLimit: 0, maxLimit: 4, severity: 'warning', correctiveAction: null, signedBy: null, signedAt: null },
+  { id: 2, deviceId: 8, deviceName: 'Fryser', startedAt: new Date(Date.now() - 5 * 864e5).toISOString(), endedAt: new Date(Date.now() - 5 * 864e5 + 35 * 60e3).toISOString(), peakValueC: -16.4, minLimit: -25, maxLimit: -18, severity: 'warning', correctiveAction: 'Freezer door not closed after delivery. Closed and goods checked.', signedBy: 'Hooman (example)', signedAt: new Date(Date.now() - 5 * 864e5 + 3600e3).toISOString() },
+];
+
+/** Example statistics for the Reports tab, derived from each sensor's limits and the period length. */
+function summaryFor(from: string, to: string) {
+  const days = Math.max(1, Math.round((Date.parse(to) - Date.parse(from)) / 864e5) + 1);
+  return sensors().map((d) => {
+    const mean = Number(d.settings.mockMean);
+    const devs = deviations.filter((v) => v.deviceId === d.id);
+    const list = Array.from({ length: days }, (_, i) => {
+      const day = new Date(Date.parse(from) + i * 864e5).toISOString().slice(0, 10);
+      return { day, min: Math.round((mean - 0.8) * 10) / 10, max: Math.round((mean + 0.7) * 10) / 10, avg: mean, count: 96, outOfRange: 0 };
+    });
+    const out = mean > d.settings.max ? 40 : devs.length * 3;
+    return { device: { id: d.id, name: d.name, archived: false, settings: d.settings }, min: mean - 0.9, max: mean + (devs.length ? 2 : 0.8), avg: mean, count: days * 96, inRangePct: Math.round((1 - out / (days * 96)) * 1000) / 10, days: list, deviations: devs };
+  });
 }
 function update(d: Device, patch: Partial<Device>) {
   Object.assign(d, patch, { lastSeen: now() });
@@ -121,6 +156,7 @@ function scenario(name: string) {
     addEvent({ device: d, type: 'temp_out_of_range', severity: 'warning', message });
     addAlert('warning', `Temperature high – ${d.name}`, message);
   } else if (name === 'reset') {
+    alerts.forEach((a) => a.status === 'open' && Object.assign(a, { status: 'resolved', resolvedAt: now() }));
     alerts = [];
     for (const d of devices) {
       if (d.kind === 'smoke' && d.lastState !== 'clear') update(d, { lastState: 'clear', status: 'ok' });
@@ -155,7 +191,7 @@ export async function handle(method: string, path: string, body: any): Promise<a
   if (method === 'POST' && path === '/location/arm') return setArmed(!!body.armed, body.by ?? 'Hooman'), { ...location };
   if (method === 'POST' && (r = m(/^\/alerts\/(\d+)\/ack$/))) {
     const a = alerts.find((x) => x.id === Number(r![1])) ?? fail('Alert not found');
-    Object.assign(a, { status: 'acknowledged', acknowledgedBy: body.by ?? 'Hooman', acknowledgedAt: now() });
+    Object.assign(a, { status: 'acknowledged', acknowledgedBy: body.by ?? 'Hooman', acknowledgedAt: now(), ackChannel: 'dashboard' });
     alerts = alerts.filter((x) => x !== a);
     emit({ type: 'alert', alert: { ...a } });
     addEvent({ type: 'acknowledged', severity: 'info', message: `"${a.title}" acknowledged by ${a.acknowledgedBy}` });
@@ -236,6 +272,48 @@ export async function handle(method: string, path: string, body: any): Promise<a
     return { recording: !r[2] };
   }
   if (path.startsWith('/cameras/recordings')) return [];
+
+  if (path === '/contacts' && method === 'GET') return [...contacts].sort((a, b) => a.escalationOrder - b.escalationOrder);
+  if (path === '/contacts' && method === 'POST') {
+    if (!/^\+\d{8,15}$/.test(String(body.phone).replace(/[\s-]/g, ''))) fail('Phone must be in international format, e.g. +4791234567');
+    const c = { ...body, id: Math.max(0, ...contacts.map((x) => x.id)) + 1 };
+    contacts.push(c);
+    return c;
+  }
+  if ((r = m(/^\/contacts\/(\d+)(\/test)?$/))) {
+    const id = Number(r[1]);
+    if (r[2]) return { call: { status: 'simulated' }, whatsapp: { status: 'simulated' } };
+    if (method === 'DELETE') return (contacts = contacts.filter((c) => c.id !== id)), { ok: true };
+    contacts = contacts.map((c) => (c.id === id ? { ...body, id } : c));
+    return { ...body, id };
+  }
+  if (path === '/rules' && method === 'GET') return { rules, triggers: TRIGGERS };
+  if (path === '/rules' && method === 'POST') {
+    if (!body.events?.length) fail('Pick at least one trigger');
+    const rule = { ...body, id: Math.max(0, ...rules.map((x) => x.id)) + 1, sortOrder: rules.length + 1 };
+    rules.push(rule);
+    return rule;
+  }
+  if ((r = m(/^\/rules\/(\d+)$/))) {
+    const id = Number(r[1]);
+    if (method === 'DELETE') return (rules = rules.filter((x) => x.id !== id)), { ok: true };
+    rules = rules.map((x) => (x.id === id ? { ...x, ...body, id } : x));
+    return rules.find((x) => x.id === id);
+  }
+  if (path === '/alerts') return alertLog.map((a) => ({ ...a, notifications: [] }));
+  if (path === '/alerts/setup') return { twilio: false, whatsapp: false, whatsappTemplate: false, publicUrl: 'demo', callbacks: false };
+  if (path === '/aqara/status') return { configured: false, region: 'eu', pollSec: 20, connected: false, account: null, expiresAt: null, lastPollAt: null, lastError: null, deviceCount: 0 };
+
+  if (path === '/reports/sensors') return sensors().map((d) => ({ ...d, archived: false }));
+  const q = new URLSearchParams(path.split('?')[1] ?? '');
+  if (path.startsWith('/reports/summary')) return summaryFor(q.get('from')!, q.get('to')!);
+  if ((r = m(/^\/reports\/deviations\/(\d+)$/))) {
+    if (!String(body.correctiveAction ?? '').trim()) fail('Describe the corrective action');
+    if (!String(body.signedBy ?? '').trim()) fail('Enter who signs');
+    const d = deviations.find((x) => x.id === Number(r![1])) ?? fail('Deviation not found');
+    Object.assign(d, { correctiveAction: body.correctiveAction, signedBy: body.signedBy, signedAt: now() });
+    return d;
+  }
   fail('Not available in the demo — needs the local server and real devices');
 }
 
