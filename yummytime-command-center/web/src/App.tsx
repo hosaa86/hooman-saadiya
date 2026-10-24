@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from './api';
 import { useDashboard } from './useDashboard';
 import { useTheme } from './useTheme';
@@ -13,11 +13,25 @@ import { EventFeed } from './components/EventFeed';
 import { LiveViewModal } from './components/LiveViewModal';
 import { DemoPanel } from './components/DemoPanel';
 import { Section } from './components/ui';
+import { DevicesPage } from './pages/DevicesPage';
+
+type Page = 'dashboard' | 'devices';
+const pageFromHash = (): Page => (location.hash.startsWith('#/devices') ? 'devices' : 'dashboard');
 
 export default function App() {
   const { theme, toggle } = useTheme();
   const [liveView, setLiveView] = useState<number[] | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [page, setPage] = useState<Page>(pageFromHash);
+  useEffect(() => {
+    const onHash = () => setPage(pageFromHash());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  const flash = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3500);
+  }, []);
   const { data, connected, history } = useDashboard(setLiveView);
   useNow(15_000); // refresh "x min ago" labels
 
@@ -35,10 +49,6 @@ export default function App() {
     );
   }
 
-  const flash = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3500);
-  };
   const onlineCams = groups.cameras.filter((c) => c.online).map((c) => c.id);
   const onCallBack = (a: Alert) => flash(`Call-back for "${a.title}" — Twilio calling arrives in step 6.`);
 
@@ -51,57 +61,62 @@ export default function App() {
         theme={theme}
         onToggleTheme={toggle}
         onToggleArmed={() => api.setArmed(!data.location.armed)}
+        page={page}
       />
 
-      <main className="mx-auto grid max-w-7xl gap-6 p-4 lg:grid-cols-[1fr_340px]">
-        <div className="space-y-6">
-          <AlarmBanner alerts={data.alerts} onLiveView={() => setLiveView(onlineCams)} onAck={(id) => api.ack(id)} onCallBack={onCallBack} />
+      {page === 'devices' ? (
+        <DevicesPage devices={data.devices} flash={flash} />
+      ) : (
+        <main className="mx-auto grid max-w-7xl gap-6 p-4 lg:grid-cols-[1fr_340px]">
+          <div className="space-y-6">
+            <AlarmBanner alerts={data.alerts} onLiveView={() => setLiveView(onlineCams)} onAck={(id) => api.ack(id)} onCallBack={onCallBack} />
 
-          <Section
-            title="Cameras"
-            count={groups.cameras.length}
-            action={
-              <button onClick={() => setLiveView(onlineCams)} className="text-sm font-medium text-orange-600 hover:underline dark:text-orange-400">
-                View all live
-              </button>
-            }
-          >
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-              {groups.cameras.map((c) => (
-                <CameraTile key={c.id} camera={c} onOpen={() => setLiveView([c.id])} />
-              ))}
-            </div>
-          </Section>
+            <Section
+              title="Cameras"
+              count={groups.cameras.length}
+              action={
+                <button onClick={() => setLiveView(onlineCams)} className="text-sm font-medium text-orange-600 hover:underline dark:text-orange-400">
+                  View all live
+                </button>
+              }
+            >
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+                {groups.cameras.map((c) => (
+                  <CameraTile key={c.id} camera={c} onOpen={() => setLiveView([c.id])} />
+                ))}
+              </div>
+            </Section>
 
-          <Section title="Sensors & Hub" count={groups.sensors.length + groups.hubs.length}>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {groups.sensors.map((s) => (
-                <SensorCard key={s.id} sensor={s} history={history[s.id] ?? []} />
-              ))}
-              {groups.hubs.map((h) => (
-                <HubCard key={h.id} hub={h} deviceCount={groups.sensors.length + groups.detectors.length} />
-              ))}
-            </div>
-          </Section>
+            <Section title="Sensors & Hub" count={groups.sensors.length + groups.hubs.length}>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {groups.sensors.map((s) => (
+                  <SensorCard key={s.id} sensor={s} history={history[s.id] ?? []} />
+                ))}
+                {groups.hubs.map((h) => (
+                  <HubCard key={h.id} hub={h} deviceCount={groups.sensors.length + groups.detectors.length} />
+                ))}
+              </div>
+            </Section>
 
-          <Section title="Detectors" count={groups.detectors.length}>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {groups.detectors.map((d) => (
-                <DetectorCard key={d.id} detector={d} locationArmed={data.location.armed} />
-              ))}
-            </div>
-          </Section>
-        </div>
+            <Section title="Detectors" count={groups.detectors.length}>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {groups.detectors.map((d) => (
+                  <DetectorCard key={d.id} detector={d} locationArmed={data.location.armed} />
+                ))}
+              </div>
+            </Section>
+          </div>
 
-        <aside className="space-y-4 lg:sticky lg:top-28 lg:self-start">
-          {data.mockMode && <DemoPanel />}
-          <Section title="Live events" count={data.events.length}>
-            <div className="lg:max-h-[calc(100vh-16rem)] lg:overflow-auto lg:rounded-xl">
-              <EventFeed events={data.events} />
-            </div>
-          </Section>
-        </aside>
-      </main>
+          <aside className="space-y-4 lg:sticky lg:top-28 lg:self-start">
+            {data.mockMode && <DemoPanel />}
+            <Section title="Live events" count={data.events.length}>
+              <div className="lg:max-h-[calc(100vh-16rem)] lg:overflow-auto lg:rounded-xl">
+                <EventFeed events={data.events} />
+              </div>
+            </Section>
+          </aside>
+        </main>
+      )}
 
       {liveView && (
         <LiveViewModal cameras={data.devices.filter((d) => liveView.includes(d.id))} onClose={() => setLiveView(null)} />

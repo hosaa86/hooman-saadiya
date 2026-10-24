@@ -8,6 +8,7 @@ export type ServerMessage =
   | { type: 'event'; event: EventRow }
   | { type: 'alert'; alert: Alert }
   | { type: 'alerts_cleared' }
+  | { type: 'devices_changed' }
   | { type: 'location'; location: Location }
   | { type: 'open_live_view'; deviceIds: number[] };
 

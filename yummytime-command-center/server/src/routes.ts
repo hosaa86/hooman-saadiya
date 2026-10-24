@@ -3,8 +3,11 @@ import { config, integrationStatus } from './config.js';
 import * as repo from './db/repo.js';
 import { broadcast } from './ws.js';
 import { runScenario, type Scenario } from './mock/scenarios.js';
+import { devices, schedule } from './devices/routes.js';
 
 export const api = Router();
+api.use('/devices', devices);
+api.use('/location/schedule', schedule);
 
 api.get('/health', (_req, res) => {
   const location = repo.getLocation();

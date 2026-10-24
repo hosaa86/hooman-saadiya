@@ -24,6 +24,15 @@ export function getDb(): DB {
   );
   if (!schemaPath) throw new Error('schema.sql not found');
   db.exec(fs.readFileSync(schemaPath, 'utf8'));
+  migrate(db);
   seed(db);
   return db;
+}
+
+/** Upgrades for databases created by an earlier schema.sql. */
+function migrate(db: DB) {
+  const has = (table: string, col: string) =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === col);
+  if (!has('devices', 'archived_at')) db.exec('ALTER TABLE devices ADD COLUMN archived_at TEXT');
+  db.exec('INSERT OR IGNORE INTO schema_version (version) VALUES (2)');
 }

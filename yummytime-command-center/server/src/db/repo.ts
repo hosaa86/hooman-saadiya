@@ -1,6 +1,7 @@
 import { getDb } from './index.js';
 import { config } from '../config.js';
-import type { Alert, Device, EventRow, Location, Severity } from '../types.js';
+import type { Alert, Category, Device, EventRow, Location, Severity } from '../types.js';
+import { defaultFields, defaultMockState, defaultSettings } from '../devices/defaults.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const db = () => getDb();
@@ -61,7 +62,7 @@ export function setArmed(armed: boolean, by: string): Location {
 
 export function listDevices(locationId: number): Device[] {
   return db()
-    .prepare('SELECT * FROM devices WHERE location_id = ? ORDER BY category, sort_order, id')
+    .prepare('SELECT * FROM devices WHERE location_id = ? AND archived_at IS NULL ORDER BY category, sort_order, id')
     .all(locationId)
     .map(toDevice);
 }
@@ -151,4 +152,81 @@ export function addTemperatureReading(deviceId: number, value: number, min: numb
   db()
     .prepare('INSERT INTO temperature_readings (device_id, value_c, min_limit, max_limit, in_range) VALUES (?, ?, ?, ?, ?)')
     .run(deviceId, value, min, max, value >= min && value <= max ? 1 : 0);
+}
+
+// ---------------------------------------------------------------------------
+// Device editing (settings screen)
+// ---------------------------------------------------------------------------
+
+export function createDevice(
+  locationId: number,
+  d: { category: Category; kind: string; name: string; provider?: string; externalId?: string | null },
+): Device {
+  const provider = d.provider ?? 'mock';
+  const settings = defaultSettings(d.kind);
+  const state = defaultMockState(d.kind);
+  const { m } = db().prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS m FROM devices WHERE location_id = ? AND category = ?').get(locationId, d.category) as { m: number };
+  const { lastInsertRowid } = db()
+    .prepare(
+      `INSERT INTO devices (location_id, category, kind, provider, external_id, channel_id, name, sort_order,
+         visible_fields, settings, status, online, battery, last_value, last_state, last_seen)
+       VALUES (?, ?, ?, ?, ?, '0', ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+    )
+    .run(
+      locationId, d.category, d.kind, provider, d.externalId || `${provider}-${Date.now()}`, d.name, m,
+      JSON.stringify(defaultFields(d.category)), JSON.stringify(settings),
+      provider === 'mock' ? state.status : 'offline', provider === 'mock' ? state.online : 0,
+      state.battery, state.last_value, state.last_state,
+    );
+  return getDevice(Number(lastInsertRowid))!;
+}
+
+export function updateDevice(
+  id: number,
+  patch: { name?: string; visibleFields?: string[]; settings?: Record<string, unknown> },
+): Device {
+  const cols: Record<string, unknown> = { id };
+  const sets: string[] = ["updated_at = datetime('now')"];
+  if (patch.name !== undefined) (cols.name = patch.name), sets.push('name = @name');
+  if (patch.visibleFields !== undefined) (cols.vf = JSON.stringify(patch.visibleFields)), sets.push('visible_fields = @vf');
+  if (patch.settings !== undefined) (cols.settings = JSON.stringify(patch.settings)), sets.push('settings = @settings');
+  db().prepare(`UPDATE devices SET ${sets.join(', ')} WHERE id = @id`).run(cols);
+  return getDevice(id)!;
+}
+
+/** Hard-delete, unless the device has compliance logs — then archive so the logs stay intact. */
+export function deleteDevice(id: number): 'deleted' | 'archived' {
+  const { n } = db()
+    .prepare('SELECT (SELECT COUNT(*) FROM temperature_readings WHERE device_id = @id) + (SELECT COUNT(*) FROM deviations WHERE device_id = @id) AS n')
+    .get({ id }) as { n: number };
+  if (n > 0) {
+    db().prepare("UPDATE devices SET archived_at = datetime('now') WHERE id = ?").run(id);
+    return 'archived';
+  }
+  db().prepare('DELETE FROM devices WHERE id = ?').run(id);
+  return 'deleted';
+}
+
+export function reorderDevices(ids: number[]) {
+  const stmt = db().prepare('UPDATE devices SET sort_order = ? WHERE id = ?');
+  db().transaction(() => ids.forEach((id, i) => stmt.run(i, id)))();
+}
+
+export interface Schedule {
+  enabled: boolean;
+  days: number[];
+  armTime: string;
+  disarmTime: string;
+}
+
+export function getSchedule(locationId: number): Schedule {
+  const r: any = db().prepare('SELECT * FROM arm_schedules WHERE location_id = ? ORDER BY id LIMIT 1').get(locationId);
+  return { enabled: !!r.enabled, days: r.days.split(',').map(Number), armTime: r.arm_time, disarmTime: r.disarm_time };
+}
+
+export function setSchedule(locationId: number, s: Schedule): Schedule {
+  db()
+    .prepare('UPDATE arm_schedules SET enabled = ?, days = ?, arm_time = ?, disarm_time = ? WHERE location_id = ?')
+    .run(s.enabled ? 1 : 0, s.days.join(','), s.armTime, s.disarmTime, locationId);
+  return getSchedule(locationId);
 }

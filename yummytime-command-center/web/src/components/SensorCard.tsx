@@ -1,7 +1,7 @@
 import { BatteryLow, BatteryMedium, Router } from 'lucide-react';
 import type { Device } from '../types';
 import { Sparkline } from './Sparkline';
-import { Card, STATUS_TEXT, StatusPill, timeAgo } from './ui';
+import { Card, STATUS_TEXT, StatusPill, temp, timeAgo } from './ui';
 
 export function Battery({ pct }: { pct: number | null }) {
   if (pct == null) return null;
@@ -26,14 +26,14 @@ export function SensorCard({ sensor, history }: { sensor: Device; history: numbe
       {show('value') && (
         <div className="mt-1 flex items-end justify-between gap-3">
           <p className={`text-3xl font-semibold tabular-nums ${sensor.status === 'ok' ? '' : STATUS_TEXT[sensor.status]}`}>
-            {sensor.online && sensor.lastValue != null ? sensor.lastValue.toFixed(1).replace('-', '−') : '—'}
+            {sensor.online && sensor.lastValue != null ? temp(sensor.lastValue, 1) : '—'}
             <span className="ml-0.5 text-base font-normal text-zinc-400">°C</span>
           </p>
           <Sparkline values={history} min={min} max={max} className={`mb-1.5 h-7 w-24 ${STATUS_TEXT[sensor.status]}`} />
         </div>
       )}
       <div className="mt-2 flex items-center justify-between gap-2 text-xs text-zinc-500">
-        {show('limits') && <span>Limit {min} – {max} °C</span>}
+        {show('limits') && <span>Limit {temp(min)} to {temp(max)} °C</span>}
         <span className="flex items-center gap-3">
           {show('battery') && <Battery pct={sensor.battery} />}
           {show('lastSeen') && <span>{timeAgo(sensor.lastSeen)}</span>}

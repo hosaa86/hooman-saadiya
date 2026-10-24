@@ -62,5 +62,18 @@ export type ServerMessage =
   | { type: 'event'; event: EventRow }
   | { type: 'alert'; alert: Alert }
   | { type: 'alerts_cleared' }
+  | { type: 'devices_changed' }
   | { type: 'location'; location: Location }
   | { type: 'open_live_view'; deviceIds: number[] };
+
+export interface Schedule {
+  enabled: boolean;
+  days: number[];
+  armTime: string;
+  disarmTime: string;
+}
+
+export interface DeviceMeta {
+  fieldOptions: Record<Category, Record<string, string>>;
+  kinds: Record<Category, string[]>;
+}

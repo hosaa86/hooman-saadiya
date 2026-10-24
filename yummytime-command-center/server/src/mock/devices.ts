@@ -1,11 +1,8 @@
 import type Database from 'better-sqlite3';
+import { defaultFields } from '../devices/defaults.js';
+import type { Category } from '../types.js';
 
 const j = JSON.stringify;
-
-const CAMERA_FIELDS = ['live', 'rec', 'status'];
-const SENSOR_FIELDS = ['value', 'limits', 'battery', 'lastSeen'];
-const DETECTOR_FIELDS = ['state', 'armed', 'battery'];
-const HUB_FIELDS = ['connection', 'linked'];
 
 type Row = [category: string, kind: string, name: string, settings: object, state: object];
 
@@ -17,10 +14,10 @@ const MOCK: Row[] = [
   ['camera', 'camera', 'Spisesal', { recordingMode: 'on_event', clipSeconds: 60 }, { online: 1, status: 'ok', last_state: 'idle' }],
   ['camera', 'camera', 'Bakgård', { recordingMode: 'on_event', clipSeconds: 60 }, { online: 0, status: 'offline', last_state: 'idle' }],
 
-  ['sensor', 'temperature', 'Kjøleskap 1', { logIntervalMin: 15, min: 0, max: 4, criticalMargin: 2, mockMean: 3.1 }, { online: 1, status: 'ok', last_value: 3.1, battery: 88 }],
-  ['sensor', 'temperature', 'Kjøleskap 2', { logIntervalMin: 15, min: 0, max: 4, criticalMargin: 2, mockMean: 4.7 }, { online: 1, status: 'warning', last_value: 4.7, battery: 74 }],
-  ['sensor', 'temperature', 'Fryser', { logIntervalMin: 15, min: -25, max: -18, criticalMargin: 3, mockMean: -20.5 }, { online: 1, status: 'ok', last_value: -20.5, battery: 91 }],
-  ['sensor', 'temperature', 'Kjølerom', { logIntervalMin: 15, min: 0, max: 4, criticalMargin: 2, mockMean: 2.4 }, { online: 1, status: 'ok', last_value: 2.4, battery: 65 }],
+  ['sensor', 'temperature', 'Kjøleskap 1', { logIntervalMin: 15, min: 0, max: 4, criticalMargin: 2, warnAfterMin: 15, criticalAfterMin: 45, mockMean: 3.1 }, { online: 1, status: 'ok', last_value: 3.1, battery: 88 }],
+  ['sensor', 'temperature', 'Kjøleskap 2', { logIntervalMin: 15, min: 0, max: 4, criticalMargin: 2, warnAfterMin: 15, criticalAfterMin: 45, mockMean: 4.7 }, { online: 1, status: 'warning', last_value: 4.7, battery: 74 }],
+  ['sensor', 'temperature', 'Fryser', { logIntervalMin: 15, min: -25, max: -18, criticalMargin: 3, warnAfterMin: 15, criticalAfterMin: 45, mockMean: -20.5 }, { online: 1, status: 'ok', last_value: -20.5, battery: 91 }],
+  ['sensor', 'temperature', 'Kjølerom', { logIntervalMin: 15, min: 0, max: 4, criticalMargin: 2, warnAfterMin: 15, criticalAfterMin: 45, mockMean: 2.4 }, { online: 1, status: 'ok', last_value: 2.4, battery: 65 }],
 
   ['detector', 'smoke', 'Røykvarsler Kjøkken', { armedSchedule: false, sensitivity: 'high' }, { online: 1, status: 'ok', last_state: 'clear', battery: 95 }],
   ['detector', 'smoke', 'Røykvarsler Spisesal', { armedSchedule: false, sensitivity: 'medium' }, { online: 1, status: 'ok', last_state: 'clear', battery: 90 }],
@@ -30,13 +27,6 @@ const MOCK: Row[] = [
 
   ['hub', 'hub', 'Aqara Hub M3', {}, { online: 1, status: 'ok', last_state: 'connected', last_value: 9 }],
 ];
-
-const FIELDS: Record<string, string[]> = {
-  camera: CAMERA_FIELDS,
-  sensor: SENSOR_FIELDS,
-  detector: DETECTOR_FIELDS,
-  hub: HUB_FIELDS,
-};
 
 /** Insert mock devices once (only when the location has no devices yet). */
 export function seedMockDevices(db: Database.Database, locationId: number) {
@@ -57,7 +47,7 @@ export function seedMockDevices(db: Database.Database, locationId: number) {
         externalId: `mock-${i + 1}`,
         name,
         sortOrder: i,
-        fields: j(FIELDS[category]),
+        fields: j(defaultFields(category as Category)),
         settings: j(settings),
         battery: null,
         last_value: null,

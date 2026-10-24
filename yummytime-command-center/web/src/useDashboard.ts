@@ -34,6 +34,7 @@ export function useDashboard(onOpenLiveView: (ids: number[]) => void) {
 
     const handle = (msg: ServerMessage) => {
       if (msg.type === 'open_live_view') return liveViewRef.current(msg.deviceIds);
+      if (msg.type === 'devices_changed') return void load();
       if (msg.type === 'device_update' && msg.device.lastValue != null && msg.device.kind === 'temperature') {
         const { id, lastValue } = msg.device;
         setHistory((h) => ({ ...h, [id]: [...(h[id] ?? []), lastValue].slice(-HISTORY) }));

@@ -9,9 +9,10 @@ interface Props {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   onToggleArmed: () => void;
+  page: 'dashboard' | 'devices';
 }
 
-export function Header({ location, devices, connected, theme, onToggleTheme, onToggleArmed }: Props) {
+export function Header({ location, devices, connected, theme, onToggleTheme, onToggleArmed, page }: Props) {
   const counts = { ok: 0, warning: 0, critical: 0, offline: 0 };
   devices.forEach((d) => counts[d.status]++);
   const overall = devices.reduce<keyof typeof counts>(
@@ -28,6 +29,20 @@ export function Header({ location, devices, connected, theme, onToggleTheme, onT
           </p>
           <h1 className="text-lg font-semibold leading-tight sm:text-xl">{location.name}</h1>
         </div>
+
+        <nav className="order-last flex w-full gap-1 rounded-lg bg-zinc-100 p-1 text-sm font-medium sm:order-none sm:w-auto dark:bg-zinc-900">
+          {(['dashboard', 'devices'] as const).map((p) => (
+            <a
+              key={p}
+              href={p === 'dashboard' ? '#/' : '#/devices'}
+              className={`flex-1 rounded-md px-3 py-1.5 text-center capitalize sm:flex-none ${
+                page === p ? 'bg-white shadow-sm dark:bg-zinc-800' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+              }`}
+            >
+              {p}
+            </a>
+          ))}
+        </nav>
 
         <button
           onClick={onToggleArmed}

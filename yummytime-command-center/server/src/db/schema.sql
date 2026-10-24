@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS devices (
   last_value      REAL,                             -- e.g. temperature in C
   last_state      TEXT,                             -- e.g. 'open','closed','smoke','clear'
   last_seen       TEXT,
+  archived_at     TEXT,                             -- set instead of deleting when logs exist (compliance)
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (provider, external_id, channel_id)

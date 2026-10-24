@@ -115,11 +115,28 @@ To start over with fresh mock data, stop the app and delete the `data/` folder.
 API (used by the dashboard): `GET /api/dashboard`, `POST /api/location/arm`,
 `POST /api/alerts/:id/ack`, `POST /api/mock/scenario/:name`, WebSocket `/ws`.
 
+## Devices & settings (step 3)
+
+Open the **Devices** tab (`#/devices`):
+
+- **Night mode:** auto arm/disarm times and weekdays.
+- **Per device:** rename, reorder (▲▼), delete, and choose which fields the card shows.
+- **Camera:** recording mode (off / on event / continuous) and clip length.
+- **Sensor:** min/max limits, logging interval, warning after N min, critical after N min, critical margin (°C).
+- **Detector:** sensitivity, follow night schedule, and a **Test** button (shows the alarm state for 4 s and logs it; no call or message is sent).
+- **Hub:** connection status and linked device count.
+- **Add device:** name, type, optional IMOU/Aqara device ID (linked to the real device in steps 4–5).
+
+Deleting a sensor that has temperature logs **archives** it instead, so the Mattilsynet log is kept.
+
+API: `GET/POST /api/devices`, `PATCH/DELETE /api/devices/:id`, `PUT /api/devices/order`,
+`POST /api/devices/:id/test`, `GET/PUT /api/location/schedule`.
+
 ## Build order
 
 1. ✅ Scaffold, `.env` template, SQLite schema, README
 2. ✅ Dashboard UI with mock data
-3. Device settings & editing (mock data)
+3. ✅ Device settings & editing (mock data)
 4. IMOU integration (list, status, HLS live view proxy, recording)
 5. Aqara integration (sensors, detectors, 15-min logging)
 6. Rules engine + alerts/escalation (Twilio voice + WhatsApp)

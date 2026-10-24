@@ -76,3 +76,6 @@ export function timeAgo(iso: string | null): string {
 
 export const clock = (iso: string) =>
   new Date(iso).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+/** Number with a proper minus sign (−20.5), for temperatures. */
+export const temp = (v: number, digits?: number) => (digits === undefined ? String(v) : v.toFixed(digits)).replace('-', '−');
