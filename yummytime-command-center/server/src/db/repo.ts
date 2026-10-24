@@ -1,6 +1,6 @@
 import { getDb } from './index.js';
 import { config } from '../config.js';
-import type { Alert, Category, Device, EventRow, Location, Recording, Severity } from '../types.js';
+import type { Alert, Category, Contact, Device, EventRow, Location, Notification, Recording, Rule, Severity } from '../types.js';
 import { defaultFields, defaultMockState, defaultSettings } from '../devices/defaults.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -50,7 +50,13 @@ const toAlert = (r: any): Alert => ({
   status: r.status,
   acknowledgedBy: r.acknowledged_by,
   acknowledgedAt: iso(r.acknowledged_at),
+  ackChannel: r.ack_channel,
   createdAt: iso(r.created_at)!,
+  deviceId: r.device_id ?? null,
+  dedupeKey: r.dedupe_key ?? null,
+  escalationStep: r.escalation_step,
+  lastNotification: r.last_notification ?? null,
+  resolvedAt: iso(r.resolved_at),
 });
 
 export function getLocation(): Location {
@@ -117,12 +123,40 @@ export function listEvents(locationId: number, limit = 50, id?: number): EventRo
 
 export function createAlert(
   locationId: number,
-  a: { severity: 'warning' | 'critical'; title: string; message: string; eventId?: number },
+  a: { severity: 'warning' | 'critical'; title: string; message: string; eventId?: number; ruleId?: number; deviceId?: number; dedupeKey?: string },
 ): Alert {
   const { lastInsertRowid } = db()
-    .prepare('INSERT INTO alerts (location_id, event_id, severity, title, message) VALUES (?, ?, ?, ?, ?)')
-    .run(locationId, a.eventId ?? null, a.severity, a.title, a.message);
+    .prepare('INSERT INTO alerts (location_id, event_id, rule_id, device_id, dedupe_key, severity, title, message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(locationId, a.eventId ?? null, a.ruleId ?? null, a.deviceId ?? null, a.dedupeKey ?? null, a.severity, a.title, a.message);
   return getAlert(Number(lastInsertRowid))!;
+}
+
+export function findActiveAlert(dedupeKey: string): Alert | undefined {
+  const r = db().prepare("SELECT * FROM alerts WHERE dedupe_key = ? AND status IN ('open','escalating') ORDER BY id DESC LIMIT 1").get(dedupeKey);
+  return r ? toAlert(r) : undefined;
+}
+
+export function upgradeAlert(id: number, severity: 'warning' | 'critical', title: string, message: string): Alert {
+  db().prepare('UPDATE alerts SET severity = ?, title = ?, message = ? WHERE id = ?').run(severity, title, message, id);
+  return getAlert(id)!;
+}
+
+export function setAlertEscalation(id: number, step: number, status: 'open' | 'escalating', lastNotification: string | null): Alert {
+  db().prepare("UPDATE alerts SET escalation_step = ?, status = ?, last_notification = ? WHERE id = ? AND status IN ('open','escalating')").run(step, status, lastNotification, id);
+  return getAlert(id)!;
+}
+
+export function resolveAlert(id: number): Alert {
+  db().prepare("UPDATE alerts SET status = 'resolved', resolved_at = datetime('now') WHERE id = ? AND status IN ('open','escalating')").run(id);
+  return getAlert(id)!;
+}
+
+export function listAlerts(locationId: number, limit = 100): Alert[] {
+  return db().prepare('SELECT * FROM alerts WHERE location_id = ? ORDER BY id DESC LIMIT ?').all(locationId, limit).map(toAlert);
+}
+
+export function escalatingAlerts(): Alert[] {
+  return db().prepare("SELECT * FROM alerts WHERE status = 'escalating'").all().map(toAlert);
 }
 
 export function getAlert(id: number): Alert | undefined {
@@ -399,3 +433,143 @@ export function signDeviation(id: number, correctiveAction: string, signedBy: st
   const r = db().prepare('SELECT v.*, d.name AS device_name FROM deviations v JOIN devices d ON d.id = v.device_id WHERE v.id = ?').get(id);
   return r ? toDeviation(r) : undefined;
 }
+
+// ---------------------------------------------------------------------------
+// Contacts, notifications, rules
+// ---------------------------------------------------------------------------
+
+const toContact = (r: any): Contact => ({
+  id: r.id,
+  name: r.name,
+  phone: r.phone,
+  whatsapp: r.whatsapp,
+  escalationOrder: r.escalation_order,
+  waitMinutes: r.wait_minutes,
+  receiveWarnings: !!r.receive_warnings,
+  enabled: !!r.enabled,
+});
+
+export function listContacts(locationId: number, onlyEnabled = false): Contact[] {
+  return db()
+    .prepare(`SELECT * FROM contacts WHERE location_id = ? ${onlyEnabled ? 'AND enabled = 1' : ''} ORDER BY escalation_order, id`)
+    .all(locationId)
+    .map(toContact);
+}
+
+export function getContact(id: number): Contact | undefined {
+  const r = db().prepare('SELECT * FROM contacts WHERE id = ?').get(id);
+  return r ? toContact(r) : undefined;
+}
+
+export function saveContact(locationId: number, c: Omit<Contact, 'id'> & { id?: number }): Contact {
+  const p = {
+    locationId,
+    name: c.name,
+    phone: c.phone,
+    whatsapp: c.whatsapp || null,
+    order: c.escalationOrder,
+    wait: c.waitMinutes,
+    warn: c.receiveWarnings ? 1 : 0,
+    enabled: c.enabled ? 1 : 0,
+  };
+  if (c.id) {
+    db()
+      .prepare('UPDATE contacts SET name=@name, phone=@phone, whatsapp=@whatsapp, escalation_order=@order, wait_minutes=@wait, receive_warnings=@warn, enabled=@enabled WHERE id=@id')
+      .run({ ...p, id: c.id });
+    return getContact(c.id)!;
+  }
+  const { lastInsertRowid } = db()
+    .prepare('INSERT INTO contacts (location_id, name, phone, whatsapp, escalation_order, wait_minutes, receive_warnings, enabled) VALUES (@locationId, @name, @phone, @whatsapp, @order, @wait, @warn, @enabled)')
+    .run(p);
+  return getContact(Number(lastInsertRowid))!;
+}
+
+export const deleteContact = (id: number) => db().prepare('DELETE FROM contacts WHERE id = ?').run(id);
+
+export function findContactByNumber(locationId: number, number: string): Contact | undefined {
+  const digits = (s: string | null) => (s ?? '').replace(/[^0-9]/g, '');
+  const n = digits(number);
+  return listContacts(locationId).find((c) => digits(c.phone) === n || digits(c.whatsapp) === n);
+}
+
+const toNotification = (r: any): Notification => ({
+  id: r.id,
+  alertId: r.alert_id,
+  contactName: r.contact_name ?? null,
+  channel: r.channel,
+  toNumber: r.to_number,
+  providerSid: r.provider_sid,
+  status: r.status,
+  error: r.error,
+  createdAt: iso(r.created_at)!,
+});
+
+export function addNotification(n: { alertId: number; contactId?: number; channel: string; to: string; sid: string | null; status: string; error?: string | null }): number {
+  return Number(
+    db()
+      .prepare('INSERT INTO alert_notifications (alert_id, contact_id, channel, to_number, provider_sid, status, error) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(n.alertId, n.contactId ?? null, n.channel, n.to, n.sid, n.status, n.error ?? null).lastInsertRowid,
+  );
+}
+
+export function updateNotificationStatus(id: number, status: string, error?: string | null) {
+  db().prepare("UPDATE alert_notifications SET status = ?, error = COALESCE(?, error), updated_at = datetime('now') WHERE id = ?").run(status, error ?? null, id);
+}
+
+export function listNotifications(alertIds: number[]): Notification[] {
+  if (alertIds.length === 0) return [];
+  return db()
+    .prepare(
+      `SELECT n.*, c.name AS contact_name FROM alert_notifications n LEFT JOIN contacts c ON c.id = n.contact_id
+       WHERE n.alert_id IN (${alertIds.map(Number).join(',')}) ORDER BY n.id`,
+    )
+    .all()
+    .map(toNotification);
+}
+
+function toRule(r: any): Rule {
+  const trigger = JSON.parse(r.trigger);
+  const conditions: any[] = JSON.parse(r.conditions);
+  const actions: any[] = JSON.parse(r.actions);
+  const alert = actions.find((a) => a.type === 'alert');
+  return {
+    id: r.id,
+    name: r.name,
+    enabled: !!r.enabled,
+    events: ([] as string[]).concat(trigger.event ?? []),
+    armedOnly: conditions.some((c) => c.armed === true),
+    recordCameras: actions.some((a) => a.type === 'record_all'),
+    openLiveView: actions.some((a) => a.type === 'open_live_view'),
+    alertSeverity: alert?.severity ?? 'none',
+    escalateToCritical: actions.some((a) => a.type === 'escalate'),
+    sortOrder: r.sort_order,
+  };
+}
+
+export function listRules(locationId: number): Rule[] {
+  return db().prepare('SELECT * FROM rules WHERE location_id = ? ORDER BY sort_order, id').all(locationId).map(toRule);
+}
+
+export function saveRule(locationId: number, r: Omit<Rule, 'id' | 'sortOrder'> & { id?: number }): Rule {
+  const trigger = JSON.stringify({ event: r.events });
+  const conditions = JSON.stringify(r.armedOnly ? [{ armed: true }] : []);
+  const actions = JSON.stringify([
+    ...(r.recordCameras ? [{ type: 'record_all' }] : []),
+    ...(r.openLiveView ? [{ type: 'open_live_view' }] : []),
+    ...(r.alertSeverity !== 'none' ? [{ type: 'alert', severity: r.alertSeverity }] : []),
+    ...(r.escalateToCritical ? [{ type: 'escalate', severity: 'critical' }] : []),
+  ]);
+  if (r.id) {
+    db()
+      .prepare("UPDATE rules SET name = ?, enabled = ?, trigger = ?, conditions = ?, actions = ?, updated_at = datetime('now') WHERE id = ?")
+      .run(r.name, r.enabled ? 1 : 0, trigger, conditions, actions, r.id);
+    return toRule(db().prepare('SELECT * FROM rules WHERE id = ?').get(r.id));
+  }
+  const { m } = db().prepare('SELECT COALESCE(MAX(sort_order), 0) + 1 AS m FROM rules WHERE location_id = ?').get(locationId) as { m: number };
+  const { lastInsertRowid } = db()
+    .prepare('INSERT INTO rules (location_id, name, enabled, trigger, conditions, actions, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(locationId, r.name, r.enabled ? 1 : 0, trigger, conditions, actions, m);
+  return toRule(db().prepare('SELECT * FROM rules WHERE id = ?').get(Number(lastInsertRowid)));
+}
+
+export const deleteRule = (id: number) => db().prepare('DELETE FROM rules WHERE id = ?').run(id);

@@ -42,7 +42,50 @@ export interface Alert {
   status: 'open' | 'escalating' | 'acknowledged' | 'resolved';
   acknowledgedBy: string | null;
   acknowledgedAt: string | null;
+  ackChannel: string | null;
   createdAt: string;
+  deviceId: number | null;
+  dedupeKey: string | null;
+  escalationStep: number;
+  lastNotification: string | null;
+  resolvedAt: string | null;
+}
+
+export interface Contact {
+  id: number;
+  name: string;
+  phone: string;
+  whatsapp: string | null;
+  escalationOrder: number;
+  waitMinutes: number;
+  receiveWarnings: boolean;
+  enabled: boolean;
+}
+
+export interface Notification {
+  id: number;
+  alertId: number;
+  contactName: string | null;
+  channel: 'voice' | 'whatsapp' | 'sms';
+  toNumber: string;
+  providerSid: string | null;
+  status: string;
+  error: string | null;
+  createdAt: string;
+}
+
+/** A rule as edited in the UI (stored as trigger/conditions/actions JSON). */
+export interface Rule {
+  id: number;
+  name: string;
+  enabled: boolean;
+  events: string[];
+  armedOnly: boolean;
+  recordCameras: boolean;
+  openLiveView: boolean;
+  alertSeverity: 'none' | 'warning' | 'critical';
+  escalateToCritical: boolean;
+  sortOrder: number;
 }
 
 export interface Location {

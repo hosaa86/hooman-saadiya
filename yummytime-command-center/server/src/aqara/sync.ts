@@ -95,7 +95,6 @@ export async function syncAqara(): Promise<AqaraSyncResult> {
     type: 'event',
     event: repo.addEvent(loc.id, { type: 'system', severity: 'info', message: `Aqara sync: ${remote.length} devices found, ${added.length} added` }),
   });
-  baselineDone.clear();
   await pollAqara(true);
   return { found: remote.length, added, unsupported };
 }

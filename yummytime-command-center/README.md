@@ -39,7 +39,7 @@ The database is created and seeded automatically on first start (or run `npm run
 |---------------------|------------------------------------------------|
 | `npm run dev`       | Backend + dashboard with live reload           |
 | `npm run build`     | Production build (server → `server/dist`, web → `web/dist`) |
-| `npm start`         | Run the built backend                          |
+| `npm start`         | Run the built app: dashboard + API on port 4000 |
 | `npm run db:init`   | Create/migrate the SQLite database             |
 | `npm run typecheck` | TypeScript check for both parts                |
 
@@ -188,6 +188,36 @@ Aqara pushes events only to a public callback URL, so this local app polls; alar
 Test without devices: `npm run fake:aqara -w server` and in `.env`: `AQARA_APP_ID=fake`, `AQARA_KEY_ID=fake`,
 `AQARA_APP_KEY=fake`, `AQARA_API_URL=http://localhost:4556` (login code `123456`).
 
+## Alerts & automations (step 6)
+
+**Alerts tab:**
+
+- **Who gets called:** contacts in call order, each with a *wait before next contact* time. **Test** sends a test call + WhatsApp.
+- **Automations:** the rules engine. Each rule: *when* (smoke, door opened, vibration, temperature out of range,
+  device offline, low battery), *only while armed*, *then* (record all cameras, open live view, alert none / warning / critical).
+  Defaults: Smoke detected, Night intrusion, Temperature out of range, Device offline / low battery.
+- **Alert log:** every alert, every call/WhatsApp attempt with its status, and who acknowledged it, when and how.
+
+| Alert | What happens |
+|---|---|
+| Critical (smoke, intrusion, temperature past critical) | Call + WhatsApp (with live-view link) to contact #1. Not acknowledged within their wait time → #2, … two rounds. Red banner on the dashboard. |
+| Warning (temperature, offline, low battery) | WhatsApp only, to contacts with *receive warnings*. Resolved automatically when the cause goes away. |
+| Acknowledge | Dashboard button, **press 1** during the call, or reply **OK** on WhatsApp (the last two need a public https `PUBLIC_BASE_URL`). |
+| Night mode | Arms at the scheduled time on the chosen days; disarms in the morning if the schedule armed it. Door/vibration alarms only count while armed. |
+
+Same alarm from several sensors (door + vibration during one break-in) = one alert. Without Twilio settings
+nothing is sent: attempts are logged as *simulated* so you can test the whole flow.
+
+### Twilio setup
+
+1. Twilio account → buy a voice-capable number → `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`.
+2. WhatsApp: the Twilio WhatsApp sandbox for testing (`WHATSAPP_FROM=whatsapp:+14155238886`, each phone joins the sandbox),
+   or a WhatsApp Business sender for real use. For alarms you need an approved template → `WHATSAPP_CONTENT_SID`.
+3. For "press 1" / "OK" acknowledgements, Twilio must reach the app: run `npm run build && npm start`
+   (dashboard + API on port 4000), expose it with HTTPS (e.g. Cloudflare Tunnel), set `PUBLIC_BASE_URL` to that
+   address and **set `APP_PASSWORD`**. In the Twilio console set the WhatsApp sender's incoming-message URL to
+   `<PUBLIC_BASE_URL>/api/twilio/whatsapp`. Webhooks are checked with Twilio's signature.
+
 ## Shareable demo
 
 `npm run build:demo -w web` (Mac/Linux) builds `web/dist-demo/`: the dashboard with an in-browser simulated
@@ -200,5 +230,5 @@ backend (no server, no real devices), used for the shareable demo link.
 3. ✅ Device settings & editing (mock data)
 4. ✅ IMOU integration (list, status, HLS live view proxy, recording)
 5. ✅ Aqara integration (sensors, detectors, 15-min logging)
-6. Rules engine + alerts/escalation (Twilio voice + WhatsApp)
+6. ✅ Rules engine + alerts/escalation (Twilio voice + WhatsApp)
 7. Compliance export (PDF/CSV temperature report)

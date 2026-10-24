@@ -1,6 +1,7 @@
 import type { Server } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Alert, Device, EventRow, Location } from './types.js';
+import { authorized } from './auth.js';
 
 export type ServerMessage =
   | { type: 'hello'; serverTime: string }
@@ -15,7 +16,7 @@ export type ServerMessage =
 let wss: WebSocketServer | null = null;
 
 export function attachWebSocket(server: Server) {
-  wss = new WebSocketServer({ server, path: '/ws' });
+  wss = new WebSocketServer({ server, path: '/ws', verifyClient: ({ req }: { req: import('node:http').IncomingMessage }) => authorized(req.headers.authorization) });
   wss.on('connection', (socket) => {
     send(socket, { type: 'hello', serverTime: new Date().toISOString() });
   });

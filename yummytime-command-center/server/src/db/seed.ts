@@ -23,7 +23,8 @@ export function seed(db: Database.Database) {
       j([{ type: 'record_all' }, { type: 'open_live_view' }, { type: 'alert', severity: 'critical' }]), 1);
     rule.run(locationId, 'Night intrusion', j({ event: ['door_open', 'vibration'] }), j([{ armed: true }]),
       j([{ type: 'record_all' }, { type: 'open_live_view' }, { type: 'alert', severity: 'critical' }]), 2);
-    rule.run(locationId, 'Temperature out of range', j({ event: 'temp_out_of_range' }), j([{ durationMin: 15 }]),
+    // Timing comes from each sensor's "warning after" / "critical after" settings
+    rule.run(locationId, 'Temperature out of range', j({ event: 'temp_out_of_range' }), j([]),
       j([{ type: 'alert', severity: 'warning' }, { type: 'escalate', afterMin: 30, severity: 'critical' }]), 3);
     rule.run(locationId, 'Device offline / low battery', j({ event: ['offline', 'low_battery'] }), j([]),
       j([{ type: 'alert', severity: 'warning' }]), 4);

@@ -35,4 +35,9 @@ function migrate(db: DB) {
     (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === col);
   if (!has('devices', 'archived_at')) db.exec('ALTER TABLE devices ADD COLUMN archived_at TEXT');
   db.exec('INSERT OR IGNORE INTO schema_version (version) VALUES (2)');
+  // v3: alert de-duplication + escalation display
+  if (!has('alerts', 'dedupe_key')) db.exec('ALTER TABLE alerts ADD COLUMN dedupe_key TEXT');
+  if (!has('alerts', 'device_id')) db.exec('ALTER TABLE alerts ADD COLUMN device_id INTEGER REFERENCES devices(id) ON DELETE SET NULL');
+  if (!has('alerts', 'last_notification')) db.exec('ALTER TABLE alerts ADD COLUMN last_notification TEXT');
+  db.exec('INSERT OR IGNORE INTO schema_version (version) VALUES (3)');
 }

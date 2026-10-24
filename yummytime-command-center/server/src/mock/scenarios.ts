@@ -1,77 +1,61 @@
 import * as repo from '../db/repo.js';
+import { applyReading } from '../devices/ingest.js';
+import { resolveAll } from '../alerts/service.js';
 import { broadcast } from '../ws.js';
-import { temperatureStatus, type SensorLimits } from '../status.js';
-import type { Device } from '../types.js';
-import { recordAll, stopEventRecordings } from '../cameras/recorder.js';
+import { stopEventRecordings } from '../cameras/recorder.js';
+import { armLocation } from '../rules/scheduler.js';
+import { backdate, checkTemperature, resetTracking } from '../rules/temperature.js';
 
 /**
- * Mock alarm scenarios for reviewing the dashboard (step 2).
- * The rules engine (step 6) replaces the hard-coded reactions below.
+ * Demo scenarios (MOCK_MODE): they only change device readings — the rules engine,
+ * alerts and escalation react exactly as they would to real devices.
  */
 export type Scenario = 'smoke' | 'intrusion' | 'temperature' | 'reset';
-
-function push(d: Device) {
-  broadcast({ type: 'device_update', device: d });
-}
-
-
-function critical(locationId: number, device: Device, type: string, title: string, message: string) {
-  const event = repo.addEvent(locationId, { deviceId: device.id, type, severity: 'critical', message });
-  broadcast({ type: 'event', event });
-  const cameraIds = recordAll(locationId);
-  broadcast({
-    type: 'event',
-    event: repo.addEvent(locationId, { type: 'recording', severity: 'info', message: `Recording started on ${cameraIds.length} cameras` }),
-  });
-  const alert = repo.createAlert(locationId, { severity: 'critical', title, message, eventId: event.id });
-  broadcast({ type: 'alert', alert });
-  const online = repo.listDevices(locationId).filter((d) => d.category === 'camera' && d.online);
-  broadcast({ type: 'open_live_view', deviceIds: online.map((d) => d.id) });
-  return alert;
-}
 
 export function runScenario(s: Scenario) {
   const loc = repo.getLocation();
   const devices = repo.listDevices(loc.id);
-  const find = (kind: string) => devices.find((d) => d.kind === kind)!;
+  const find = (kind: string) => devices.find((d) => d.kind === kind && d.online);
 
   switch (s) {
     case 'smoke': {
-      const d = repo.updateDeviceState(find('smoke').id, { lastState: 'smoke', status: 'critical' });
-      push(d);
-      return critical(loc.id, d, 'smoke', `Smoke detected – ${d.name}`, `${d.name} reports smoke at ${loc.name}.`);
+      const d = find('smoke');
+      if (!d) throw new Error('No online smoke detector');
+      applyReading(d, { state: 'smoke' });
+      return;
     }
     case 'intrusion': {
-      if (!loc.armed) broadcast({ type: 'location', location: repo.setArmed(true, 'demo') });
-      const d = repo.updateDeviceState(find('door').id, { lastState: 'open', status: 'critical' });
-      push(d);
-      return critical(loc.id, d, 'door_open', `Intrusion – ${d.name} opened`, `${d.name} opened while armed at ${loc.name}.`);
+      const d = find('door');
+      if (!d) throw new Error('No online door sensor');
+      if (!loc.armed) armLocation(true, 'demo');
+      applyReading(repo.getDevice(d.id)!, { state: 'open' });
+      return;
     }
     case 'temperature': {
-      const sensor = find('temperature');
-      const lim = sensor.settings as unknown as SensorLimits;
-      const value = lim.max + lim.criticalMargin + 1.5;
-      const d = repo.updateDeviceState(sensor.id, { lastValue: value, lastState: 'forced', status: temperatureStatus(value, lim) });
-      push(d);
-      const message = `${d.name} at ${value.toFixed(1)} °C (max ${lim.max} °C)`;
-      const event = repo.addEvent(loc.id, { deviceId: d.id, type: 'temp_out_of_range', severity: 'warning', message });
-      broadcast({ type: 'event', event });
-      const alert = repo.createAlert(loc.id, { severity: 'warning', title: `Temperature high – ${d.name}`, message, eventId: event.id });
-      broadcast({ type: 'alert', alert });
-      return alert;
+      const d = find('temperature');
+      if (!d) throw new Error('No online temperature sensor');
+      // 1 °C over the limit, as if it had been warm for the whole "warning after" time
+      const value = Number(d.settings.max) + 1;
+      const updated = applyReading(d, { value, state: 'forced' });
+      backdate(d.id, Number(d.settings.warnAfterMin ?? 15));
+      checkTemperature(updated);
+      return;
     }
     case 'reset': {
-      repo.resolveAllAlerts(loc.id);
+      resolveAll();
       stopEventRecordings();
-      for (const d of devices) {
-        if (d.kind === 'smoke' && d.lastState !== 'clear') push(repo.updateDeviceState(d.id, { lastState: 'clear', status: 'ok' }));
-        if (d.kind === 'door' && d.lastState === 'open')
-          push(repo.updateDeviceState(d.id, { lastState: 'closed', status: (d.battery ?? 100) < 20 ? 'warning' : 'ok' }));
-        if (d.kind === 'temperature' && d.lastState === 'forced') push(repo.updateDeviceState(d.id, { lastState: null }));
+      for (const d of repo.listDevices(loc.id)) {
+        if (d.kind === 'smoke' && d.lastState === 'smoke') applyReading(d, { state: 'clear' });
+        if (d.kind === 'door' && d.lastState === 'open') applyReading(d, { state: 'closed' });
+        if (d.kind === 'temperature' && d.lastState === 'forced') {
+          resetTracking(d.id);
+          applyReading(d, { state: null, value: Number(d.settings.mockMean ?? (Number(d.settings.min) + Number(d.settings.max)) / 2) });
+          repo.updateDeviceState(d.id, { lastState: null });
+        }
       }
-      broadcast({ type: 'alerts_cleared' });
+      if (loc.armed && loc.armedBy === 'demo') armLocation(false, 'demo');
       broadcast({ type: 'event', event: repo.addEvent(loc.id, { type: 'system', severity: 'info', message: 'Demo reset – all clear' }) });
-      return null;
+      return;
     }
   }
 }

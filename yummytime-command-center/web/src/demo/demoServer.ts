@@ -59,7 +59,10 @@ function addEvent(e: { device?: Device; type: string; severity: EventRow['severi
   return ev;
 }
 function addAlert(severity: Alert['severity'], title: string, message: string) {
-  const a: Alert = { id: alertId++, severity, title, message, status: 'open', acknowledgedBy: null, acknowledgedAt: null, createdAt: now() };
+  const a: Alert = {
+    id: alertId++, severity, title, message, status: 'open', acknowledgedBy: null, acknowledgedAt: null, ackChannel: null,
+    createdAt: now(), deviceId: null, escalationStep: 0, lastNotification: severity === 'critical' ? 'Calling Hooman (1/4) — demo, nobody is called' : null, resolvedAt: null,
+  };
   alerts.unshift(a);
   emit({ type: 'alert', alert: a });
 }

@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { config, integrationStatus } from './config.js';
 import * as repo from './db/repo.js';
-import { broadcast } from './ws.js';
 import { runScenario, type Scenario } from './mock/scenarios.js';
 import { devices, schedule } from './devices/routes.js';
-import { refreshArmedStatus } from './devices/ingest.js';
+import { armLocation } from './rules/scheduler.js';
+import { alertsApi } from './alerts/routes.js';
 import { ffmpegBinary } from './cameras/recorder.js';
 import { cameras } from './cameras/routes.js';
 import { aqaraRoutes } from './aqara/routes.js';
@@ -14,6 +14,7 @@ api.use('/devices', devices);
 api.use('/location/schedule', schedule);
 api.use('/cameras', cameras);
 api.use('/aqara', aqaraRoutes);
+api.use('/', alertsApi);
 
 api.get('/health', (_req, res) => {
   const location = repo.getLocation();
@@ -41,36 +42,7 @@ api.get('/dashboard', (_req, res) => {
 });
 
 api.post('/location/arm', (req, res) => {
-  const armed = Boolean(req.body?.armed);
-  const by = String(req.body?.by ?? 'Hooman');
-  const location = repo.setArmed(armed, by);
-  broadcast({ type: 'location', location });
-  refreshArmedStatus(location.id);
-  broadcast({
-    type: 'event',
-    event: repo.addEvent(location.id, {
-      type: armed ? 'armed' : 'disarmed',
-      severity: 'info',
-      message: `${armed ? 'Armed' : 'Disarmed'} by ${by}`,
-    }),
-  });
-  res.json(location);
-});
-
-api.post('/alerts/:id/ack', (req, res) => {
-  const by = String(req.body?.by ?? 'Hooman');
-  const alert = repo.acknowledgeAlert(Number(req.params.id), by);
-  if (!alert) return res.status(404).json({ error: 'Alert not found' });
-  broadcast({ type: 'alert', alert });
-  broadcast({
-    type: 'event',
-    event: repo.addEvent(repo.getLocation().id, {
-      type: 'acknowledged',
-      severity: 'info',
-      message: `"${alert.title}" acknowledged by ${by}`,
-    }),
-  });
-  res.json(alert);
+  res.json(armLocation(Boolean(req.body?.armed), String(req.body?.by ?? 'Hooman')));
 });
 
 const SCENARIOS: Scenario[] = ['smoke', 'intrusion', 'temperature', 'reset'];
@@ -79,5 +51,10 @@ api.post('/mock/scenario/:name', (req, res) => {
   if (!config.mockMode) return res.status(400).json({ error: 'Only available in MOCK_MODE' });
   const name = req.params.name as Scenario;
   if (!SCENARIOS.includes(name)) return res.status(400).json({ error: `Use one of: ${SCENARIOS.join(', ')}` });
-  res.json({ ok: true, alert: runScenario(name) });
+  try {
+    runScenario(name);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(409).json({ error: (e as Error).message });
+  }
 });

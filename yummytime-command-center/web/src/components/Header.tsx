@@ -2,6 +2,9 @@ import { Moon, Shield, ShieldOff, Sun, Wifi, WifiOff } from 'lucide-react';
 import type { Device, Location } from '../types';
 import { SEVERITY_RANK, StatusPill } from './ui';
 
+export type Page = 'dashboard' | 'devices' | 'alerts' | 'reports';
+export const PAGES: Page[] = ['dashboard', 'devices', 'alerts', 'reports'];
+
 interface Props {
   location: Location;
   devices: Device[];
@@ -9,7 +12,7 @@ interface Props {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   onToggleArmed: () => void;
-  page: 'dashboard' | 'devices';
+  page: Page;
 }
 
 export function Header({ location, devices, connected, theme, onToggleTheme, onToggleArmed, page }: Props) {
@@ -31,11 +34,11 @@ export function Header({ location, devices, connected, theme, onToggleTheme, onT
         </div>
 
         <nav className="order-last flex w-full gap-1 rounded-lg bg-zinc-100 p-1 text-sm font-medium sm:order-none sm:w-auto dark:bg-zinc-900">
-          {(['dashboard', 'devices'] as const).map((p) => (
+          {PAGES.map((p) => (
             <a
               key={p}
-              href={p === 'dashboard' ? '#/' : '#/devices'}
-              className={`flex-1 rounded-md px-3 py-1.5 text-center capitalize sm:flex-none ${
+              href={p === 'dashboard' ? '#/' : `#/${p}`}
+              className={`flex-1 rounded-md px-2 py-1.5 text-center capitalize sm:flex-none sm:px-3 ${
                 page === p ? 'bg-white shadow-sm dark:bg-zinc-800' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
               }`}
             >

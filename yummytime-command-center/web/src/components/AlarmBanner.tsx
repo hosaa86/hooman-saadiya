@@ -24,6 +24,7 @@ export function AlarmBanner({ alerts, onLiveView, onAck, onCallBack }: Props) {
               <p className="text-xs font-semibold uppercase tracking-wider text-red-100">Critical alarm · {clock(a.createdAt)}</p>
               <p className="text-lg font-bold leading-tight">{a.title}</p>
               <p className="text-sm text-red-100">{a.message}</p>
+              {a.lastNotification && <p className="mt-1 text-xs font-medium text-white/90">{a.lastNotification}</p>}
             </div>
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2">
@@ -39,7 +40,10 @@ export function AlarmBanner({ alerts, onLiveView, onAck, onCallBack }: Props) {
           <AlertTriangle className="shrink-0" size={20} />
           <div className="min-w-0 flex-1">
             <p className="font-semibold leading-tight">{a.title}</p>
-            <p className="text-xs opacity-80">{a.message} · {clock(a.createdAt)}</p>
+            <p className="text-xs opacity-80">
+              {a.message} · {clock(a.createdAt)}
+              {a.lastNotification && ` · ${a.lastNotification}`}
+            </p>
           </div>
           <button
             onClick={() => onAck(a.id)}

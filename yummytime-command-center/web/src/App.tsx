@@ -14,9 +14,11 @@ import { LiveViewModal } from './components/LiveViewModal';
 import { DemoPanel } from './components/DemoPanel';
 import { Section } from './components/ui';
 import { DevicesPage } from './pages/DevicesPage';
+import { AlertsPage } from './pages/AlertsPage';
+import { CallBackSheet } from './components/CallBackSheet';
+import { PAGES, type Page } from './components/Header';
 
-type Page = 'dashboard' | 'devices';
-const pageFromHash = (): Page => (location.hash.startsWith('#/devices') ? 'devices' : 'dashboard');
+const pageFromHash = (): Page => PAGES.find((p) => location.hash.startsWith(`#/${p}`)) ?? 'dashboard';
 
 export default function App() {
   const { theme, toggle } = useTheme();
@@ -32,7 +34,15 @@ export default function App() {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
   }, []);
+  const [callBack, setCallBack] = useState<Alert | null>(null);
   const { data, connected, history } = useDashboard(setLiveView);
+
+  // #/live (the link in alarm messages) opens live view of every online camera
+  useEffect(() => {
+    if (!data || !location.hash.startsWith('#/live')) return;
+    setLiveView(data.devices.filter((d) => d.category === 'camera' && d.online).map((d) => d.id));
+    window.history.replaceState(null, '', '#/');
+  }, [data !== null]);
   useNow(15_000); // refresh "x min ago" labels
 
   const groups = useMemo(() => {
@@ -50,7 +60,7 @@ export default function App() {
   }
 
   const onlineCams = groups.cameras.filter((c) => c.online).map((c) => c.id);
-  const onCallBack = (a: Alert) => flash(`Call-back for "${a.title}" — Twilio calling arrives in step 6.`);
+  const onCallBack = (a: Alert) => setCallBack(a);
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
@@ -66,6 +76,8 @@ export default function App() {
 
       {page === 'devices' ? (
         <DevicesPage devices={data.devices} flash={flash} />
+      ) : page === 'alerts' ? (
+        <AlertsPage alerts={data.alerts} flash={flash} />
       ) : (
         <main className="mx-auto grid max-w-7xl gap-6 p-4 lg:grid-cols-[1fr_340px]">
           <div className="space-y-6">
@@ -121,6 +133,8 @@ export default function App() {
       {liveView && (
         <LiveViewModal cameras={data.devices.filter((d) => liveView.includes(d.id))} onClose={() => setLiveView(null)} flash={flash} />
       )}
+
+      {callBack && <CallBackSheet alert={callBack} onClose={() => setCallBack(null)} />}
 
       {toast && (
         <div className="fixed inset-x-4 bottom-4 z-40 mx-auto max-w-md rounded-xl bg-zinc-900 px-4 py-3 text-sm text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900">

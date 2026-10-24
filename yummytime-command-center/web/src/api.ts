@@ -1,4 +1,4 @@
-import type { Alert, AqaraResource, AqaraStatus, Category, DashboardData, Device, DeviceMeta, Location, Recording, Schedule } from './types';
+import type { Alert, AlertSetup, AlertWithLog, AqaraResource, Contact, Rule, AqaraStatus, Category, DashboardData, Device, DeviceMeta, Location, Recording, Schedule } from './types';
 
 export const DEMO = import.meta.env.VITE_DEMO === '1';
 
@@ -47,5 +47,14 @@ export const api = {
   aqaraSync: () => req<{ found: number; added: string[]; unsupported: string[] }>('/aqara/sync', {}),
   aqaraDisconnect: () => req('/aqara/disconnect', {}),
   aqaraResources: (id: number) => req<AqaraResource[]>(`/aqara/devices/${id}/resources`),
+  contacts: () => req<Contact[]>('/contacts'),
+  saveContact: (c: Omit<Contact, 'id'> & { id?: number }) => (c.id ? req<Contact>(`/contacts/${c.id}`, c, 'PUT') : req<Contact>('/contacts', c)),
+  deleteContact: (id: number) => req(`/contacts/${id}`, undefined, 'DELETE'),
+  testContact: (id: number) => req<{ call: { status: string; error?: string }; whatsapp: { status: string; error?: string } }>(`/contacts/${id}/test`, {}),
+  rules: () => req<{ rules: Rule[]; triggers: string[] }>('/rules'),
+  saveRule: (r: Omit<Rule, 'id' | 'sortOrder'> & { id?: number }) => (r.id ? req<Rule>(`/rules/${r.id}`, r, 'PUT') : req<Rule>('/rules', r)),
+  deleteRule: (id: number) => req(`/rules/${id}`, undefined, 'DELETE'),
+  alertLog: () => req<AlertWithLog[]>('/alerts'),
+  alertSetup: () => req<AlertSetup>('/alerts/setup'),
   scenario: (name: 'smoke' | 'intrusion' | 'temperature' | 'reset') => req(`/mock/scenario/${name}`, {}),
 };

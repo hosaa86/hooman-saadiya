@@ -25,6 +25,9 @@ export const config = {
     statusPollSec: Number(env('IMOU_STATUS_POLL_SEC', '60')),
     snapshotIntervalMin: Number(env('SNAPSHOT_INTERVAL_MIN', '5')),
   },
+  /** Optional password for the whole app (browser login prompt). Strongly recommended before exposing it outside the LAN. */
+  appPassword: env('APP_PASSWORD'),
+  timezone: env('TZ', 'Europe/Oslo'),
   recording: {
     ffmpegPath: env('FFMPEG_PATH'),
     retentionDays: Number(env('RECORDING_RETENTION_DAYS', '14')),
@@ -42,6 +45,12 @@ export const config = {
     tokenValidity: env('AQARA_TOKEN_VALIDITY', '7d'),
   },
   twilio: {
+    /** Override only for testing. */
+    apiUrl: env('TWILIO_API_URL', 'https://api.twilio.com'),
+    /** Approved WhatsApp template (Content SID) with {{1}} = title, {{2}} = details + link. Needed outside the 24 h reply window. */
+    whatsappContentSid: env('WHATSAPP_CONTENT_SID'),
+    voice: env('ALERT_VOICE', 'Polly.Amy'),
+    voiceLanguage: env('ALERT_VOICE_LANGUAGE', 'en-GB'),
     accountSid: env('TWILIO_ACCOUNT_SID'),
     authToken: env('TWILIO_AUTH_TOKEN'),
     fromNumber: env('TWILIO_FROM_NUMBER'),
@@ -57,4 +66,14 @@ export function integrationStatus() {
     twilio: Boolean(config.twilio.accountSid && config.twilio.authToken && config.twilio.fromNumber),
     whatsapp: Boolean(config.twilio.accountSid && config.twilio.authToken && config.twilio.whatsappFrom),
   };
+}
+
+/** Twilio can only call back (keypress, delivery status) when PUBLIC_BASE_URL is a public https address. */
+export function publicUrlReachable(): boolean {
+  try {
+    const u = new URL(config.publicBaseUrl);
+    return u.protocol === 'https:' && !/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(u.hostname);
+  } catch {
+    return false;
+  }
 }
