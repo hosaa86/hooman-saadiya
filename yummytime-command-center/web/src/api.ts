@@ -1,4 +1,4 @@
-import type { Alert, Category, DashboardData, Device, DeviceMeta, Location, Schedule } from './types';
+import type { Alert, Category, DashboardData, Device, DeviceMeta, Location, Recording, Schedule } from './types';
 
 async function req<T>(path: string, body?: unknown, method?: string): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -30,5 +30,10 @@ export const api = {
   testDetector: (id: number) => req(`/devices/${id}/test`, {}),
   schedule: () => req<Schedule>('/location/schedule'),
   setSchedule: (s: Schedule) => req<Schedule>('/location/schedule', s, 'PUT'),
+  record: (id: number) => req<{ recording: boolean }>(`/cameras/${id}/record`, {}),
+  stopRecord: (id: number) => req(`/cameras/${id}/record/stop`, {}),
+  snapshot: (id: number) => req<Device>(`/cameras/${id}/snapshot`, {}),
+  recordings: (deviceId: number) => req<Recording[]>(`/cameras/recordings?deviceId=${deviceId}`),
+  imouSync: () => req<{ found: number; added: string[]; removedMock: number }>('/cameras/imou/sync', {}),
   scenario: (name: 'smoke' | 'intrusion' | 'temperature' | 'reset') => req(`/mock/scenario/${name}`, {}),
 };

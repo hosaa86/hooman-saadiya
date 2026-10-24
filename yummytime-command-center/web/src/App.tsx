@@ -119,7 +119,7 @@ export default function App() {
       )}
 
       {liveView && (
-        <LiveViewModal cameras={data.devices.filter((d) => liveView.includes(d.id))} onClose={() => setLiveView(null)} />
+        <LiveViewModal cameras={data.devices.filter((d) => liveView.includes(d.id))} onClose={() => setLiveView(null)} flash={flash} />
       )}
 
       {toast && (

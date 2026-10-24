@@ -3,6 +3,7 @@ import * as repo from '../db/repo.js';
 import { broadcast } from '../ws.js';
 import { temperatureStatus, type SensorLimits } from '../status.js';
 import type { Category } from '../types.js';
+import { stopRecording, syncContinuous } from '../cameras/recorder.js';
 import { FIELD_OPTIONS, KINDS, defaultSettings, validateSettings } from './defaults.js';
 
 export const devices = Router();
@@ -58,12 +59,14 @@ devices.patch('/:id', (req, res) => {
     updated = repo.updateDeviceState(updated.id, { status: temperatureStatus(updated.lastValue, updated.settings as unknown as SensorLimits) });
   }
   broadcast({ type: 'device_update', device: updated });
+  if (updated.category === 'camera') syncContinuous(updated.locationId);
   res.json(updated);
 });
 
 devices.delete('/:id', (req, res) => {
   const device = repo.getDevice(Number(req.params.id));
   if (!device) return res.status(404).json({ error: 'Device not found' });
+  stopRecording(device.id);
   const result = repo.deleteDevice(device.id);
   changed(device.locationId, result === 'archived' ? `Device removed: ${device.name} (temperature log kept)` : `Device removed: ${device.name}`);
   res.json({ result });

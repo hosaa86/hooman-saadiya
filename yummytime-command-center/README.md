@@ -131,13 +131,46 @@ Deleting a sensor that has temperature logs **archives** it instead, so the Matt
 
 API: `GET/POST /api/devices`, `PATCH/DELETE /api/devices/:id`, `PUT /api/devices/order`,
 `POST /api/devices/:id/test`, `GET/PUT /api/location/schedule`.
+Cameras: `GET /api/cameras/:id/live.m3u8?q=hd|sd`, `GET|POST /api/cameras/:id/snapshot(.jpg)`,
+`POST /api/cameras/:id/record` / `record/stop`, `GET /api/cameras/recordings`, `POST /api/cameras/imou/sync`.
+
+## IMOU cameras (step 4)
+
+1. In `.env` set `IMOU_APP_ID`, `IMOU_APP_SECRET`, `IMOU_DATA_CENTER=fk`, then restart `npm run dev`.
+2. On start the server imports every camera on the IMOU account and **replaces the 5 mock cameras**.
+   Re-import any time: **Devices → Cameras → Sync IMOU**. Renamed cameras keep your name.
+3. Install ffmpeg for MP4 recording (recommended):
+   - Windows: `winget install Gyan.FFmpeg` (then reopen the terminal)
+   - Mac: `brew install ffmpeg`
+
+   If none is installed, the bundled `ffmpeg-static` is tried. `GET /api/health` shows `"recorder": "ready"`.
+
+What it does:
+
+| Feature | How |
+|---|---|
+| Camera list + online/offline | `deviceBaseList` / `deviceOnline`, checked every 60 s; offline/online goes to the event feed |
+| Tiles | Snapshot (`setDeviceSnapEnhanced`) every 5 min while a dashboard is open |
+| Live view | IMOU **http** HLS stream proxied through the backend (`/api/cameras/:id/live.m3u8`), played with hls.js. Grid = SD, single camera = HD (switchable) |
+| Recording | ffmpeg saves MP4 to `data/recordings/<camera>/<date>/`. Manual (Record button), on alarm (smoke / intrusion → all cameras whose mode isn't *off*), or continuous (back-to-back clips) |
+| Clean-up | Recordings and snapshots older than `RECORDING_RETENTION_DAYS` (14) are deleted |
+
+The proxy only forwards to hosts IMOU gave a stream URL for (it is not an open proxy).
+
+### Test without real cameras
+
+```bash
+npm run fake:imou -w server      # fake IMOU API + 4 live test streams on :4555
+```
+and in `.env`: `IMOU_APP_ID=fake`, `IMOU_APP_SECRET=fake`, `IMOU_API_URL=http://localhost:4555/openapi`.
+Remove `IMOU_API_URL` again before using your real account.
 
 ## Build order
 
 1. ✅ Scaffold, `.env` template, SQLite schema, README
 2. ✅ Dashboard UI with mock data
 3. ✅ Device settings & editing (mock data)
-4. IMOU integration (list, status, HLS live view proxy, recording)
+4. ✅ IMOU integration (list, status, HLS live view proxy, recording)
 5. Aqara integration (sensors, detectors, 15-min logging)
 6. Rules engine + alerts/escalation (Twilio voice + WhatsApp)
 7. Compliance export (PDF/CSV temperature report)

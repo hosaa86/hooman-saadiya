@@ -1,6 +1,6 @@
 import { getDb } from './index.js';
 import { config } from '../config.js';
-import type { Alert, Category, Device, EventRow, Location, Severity } from '../types.js';
+import type { Alert, Category, Device, EventRow, Location, Recording, Severity } from '../types.js';
 import { defaultFields, defaultMockState, defaultSettings } from '../devices/defaults.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -9,12 +9,16 @@ const db = () => getDb();
 // SQLite stores UTC as 'YYYY-MM-DD HH:MM:SS'; expose ISO with Z so browsers parse it as UTC.
 const iso = (s: string | null) => (s ? s.replace(' ', 'T') + (s.endsWith('Z') ? '' : 'Z') : null);
 
+const SNAPSHOT_AT = '(SELECT MAX(taken_at) FROM snapshots s WHERE s.device_id = devices.id) AS snapshot_at';
+
 const toDevice = (r: any): Device => ({
   id: r.id,
   locationId: r.location_id,
   category: r.category,
   kind: r.kind,
   provider: r.provider,
+  externalId: r.external_id,
+  channelId: r.channel_id,
   name: r.name,
   sortOrder: r.sort_order,
   visibleFields: JSON.parse(r.visible_fields),
@@ -25,6 +29,7 @@ const toDevice = (r: any): Device => ({
   lastValue: r.last_value,
   lastState: r.last_state,
   lastSeen: iso(r.last_seen),
+  snapshotAt: iso(r.snapshot_at ?? null),
 });
 
 const toEvent = (r: any): EventRow => ({
@@ -62,13 +67,13 @@ export function setArmed(armed: boolean, by: string): Location {
 
 export function listDevices(locationId: number): Device[] {
   return db()
-    .prepare('SELECT * FROM devices WHERE location_id = ? AND archived_at IS NULL ORDER BY category, sort_order, id')
+    .prepare(`SELECT *, ${SNAPSHOT_AT} FROM devices WHERE location_id = ? AND archived_at IS NULL ORDER BY category, sort_order, id`)
     .all(locationId)
     .map(toDevice);
 }
 
 export function getDevice(id: number): Device | undefined {
-  const r = db().prepare('SELECT * FROM devices WHERE id = ?').get(id);
+  const r = db().prepare(`SELECT *, ${SNAPSHOT_AT} FROM devices WHERE id = ?`).get(id);
   return r ? toDevice(r) : undefined;
 }
 
@@ -160,7 +165,7 @@ export function addTemperatureReading(deviceId: number, value: number, min: numb
 
 export function createDevice(
   locationId: number,
-  d: { category: Category; kind: string; name: string; provider?: string; externalId?: string | null },
+  d: { category: Category; kind: string; name: string; provider?: string; externalId?: string | null; channelId?: string },
 ): Device {
   const provider = d.provider ?? 'mock';
   const settings = defaultSettings(d.kind);
@@ -170,10 +175,10 @@ export function createDevice(
     .prepare(
       `INSERT INTO devices (location_id, category, kind, provider, external_id, channel_id, name, sort_order,
          visible_fields, settings, status, online, battery, last_value, last_state, last_seen)
-       VALUES (?, ?, ?, ?, ?, '0', ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
     )
     .run(
-      locationId, d.category, d.kind, provider, d.externalId || `${provider}-${Date.now()}`, d.name, m,
+      locationId, d.category, d.kind, provider, d.externalId || `${provider}-${Date.now()}`, d.channelId ?? '0', d.name, m,
       JSON.stringify(defaultFields(d.category)), JSON.stringify(settings),
       provider === 'mock' ? state.status : 'offline', provider === 'mock' ? state.online : 0,
       state.battery, state.last_value, state.last_state,
@@ -229,4 +234,75 @@ export function setSchedule(locationId: number, s: Schedule): Schedule {
     .prepare('UPDATE arm_schedules SET enabled = ?, days = ?, arm_time = ?, disarm_time = ? WHERE location_id = ?')
     .run(s.enabled ? 1 : 0, s.days.join(','), s.armTime, s.disarmTime, locationId);
   return getSchedule(locationId);
+}
+
+// ---------------------------------------------------------------------------
+// Cameras: recordings & snapshots
+// ---------------------------------------------------------------------------
+
+const toRecording = (r: any): Recording => ({
+  id: r.id,
+  deviceId: r.device_id,
+  reason: r.reason,
+  filePath: r.file_path,
+  startedAt: iso(r.started_at)!,
+  endedAt: iso(r.ended_at),
+  sizeBytes: r.size_bytes,
+});
+
+export function findDeviceByExternal(provider: string, externalId: string, channelId: string): Device | undefined {
+  const r = db()
+    .prepare(`SELECT *, ${SNAPSHOT_AT} FROM devices WHERE provider = ? AND external_id = ? AND channel_id = ?`)
+    .get(provider, externalId, channelId);
+  return r ? toDevice(r) : undefined;
+}
+
+export function startRecordingRow(deviceId: number, reason: string, filePath: string | null, alertId?: number): number {
+  return Number(
+    db().prepare('INSERT INTO recordings (device_id, alert_id, reason, file_path) VALUES (?, ?, ?, ?)').run(deviceId, alertId ?? null, reason, filePath)
+      .lastInsertRowid,
+  );
+}
+
+export function endRecordingRow(id: number, sizeBytes: number | null) {
+  db().prepare("UPDATE recordings SET ended_at = datetime('now'), size_bytes = ? WHERE id = ?").run(sizeBytes, id);
+}
+
+export function listRecordings(deviceId?: number, limit = 50): Recording[] {
+  return db()
+    .prepare(`SELECT * FROM recordings WHERE file_path IS NOT NULL ${deviceId ? 'AND device_id = @deviceId' : ''} ORDER BY id DESC LIMIT @limit`)
+    .all({ deviceId, limit })
+    .map(toRecording);
+}
+
+export function getRecording(id: number): Recording | undefined {
+  const r = db().prepare('SELECT * FROM recordings WHERE id = ?').get(id);
+  return r ? toRecording(r) : undefined;
+}
+
+export function addSnapshot(deviceId: number, filePath: string) {
+  db().prepare('INSERT INTO snapshots (device_id, file_path) VALUES (?, ?)').run(deviceId, filePath);
+}
+
+export function latestSnapshot(deviceId: number): string | undefined {
+  const r = db().prepare('SELECT file_path FROM snapshots WHERE device_id = ? ORDER BY id DESC LIMIT 1').get(deviceId) as { file_path: string } | undefined;
+  return r?.file_path;
+}
+
+/** Rows older than `days` (finished recordings + snapshots) — caller deletes the files. */
+export function expiredMedia(days: number): { recordings: { id: number; file_path: string | null }[]; snapshots: { id: number; file_path: string }[] } {
+  const cutoff = `-${days} days`;
+  return {
+    recordings: db().prepare("SELECT id, file_path FROM recordings WHERE ended_at IS NOT NULL AND started_at < datetime('now', ?)").all(cutoff) as any,
+    snapshots: db().prepare("SELECT id, file_path FROM snapshots WHERE taken_at < datetime('now', ?)").all(cutoff) as any,
+  };
+}
+
+export function deleteMediaRows(recordingIds: number[], snapshotIds: number[]) {
+  const r = db().prepare('DELETE FROM recordings WHERE id = ?');
+  const s = db().prepare('DELETE FROM snapshots WHERE id = ?');
+  db().transaction(() => {
+    recordingIds.forEach((id) => r.run(id));
+    snapshotIds.forEach((id) => s.run(id));
+  })();
 }

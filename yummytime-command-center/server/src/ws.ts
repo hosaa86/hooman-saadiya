@@ -29,3 +29,5 @@ function send(socket: WebSocket, msg: ServerMessage) {
 export function broadcast(msg: ServerMessage) {
   wss?.clients.forEach((c) => send(c, msg));
 }
+
+export const clientCount = () => wss?.clients.size ?? 0;

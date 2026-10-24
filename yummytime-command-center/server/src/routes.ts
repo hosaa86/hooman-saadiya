@@ -4,10 +4,13 @@ import * as repo from './db/repo.js';
 import { broadcast } from './ws.js';
 import { runScenario, type Scenario } from './mock/scenarios.js';
 import { devices, schedule } from './devices/routes.js';
+import { ffmpegBinary } from './cameras/recorder.js';
+import { cameras } from './cameras/routes.js';
 
 export const api = Router();
 api.use('/devices', devices);
 api.use('/location/schedule', schedule);
+api.use('/cameras', cameras);
 
 api.get('/health', (_req, res) => {
   const location = repo.getLocation();
@@ -18,6 +21,7 @@ api.get('/health', (_req, res) => {
     location,
     deviceCount: repo.listDevices(location.id).length,
     integrations: integrationStatus(),
+    recorder: ffmpegBinary() ? 'ready' : 'ffmpeg missing',
   });
 });
 

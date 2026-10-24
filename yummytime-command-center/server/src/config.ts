@@ -20,6 +20,14 @@ export const config = {
     appId: env('IMOU_APP_ID'),
     appSecret: env('IMOU_APP_SECRET'),
     dataCenter: env('IMOU_DATA_CENTER', 'fk'),
+    /** Override only for testing (e.g. the fake IMOU server). Default is derived from the data center. */
+    apiUrl: env('IMOU_API_URL'),
+    statusPollSec: Number(env('IMOU_STATUS_POLL_SEC', '60')),
+    snapshotIntervalMin: Number(env('SNAPSHOT_INTERVAL_MIN', '5')),
+  },
+  recording: {
+    ffmpegPath: env('FFMPEG_PATH'),
+    retentionDays: Number(env('RECORDING_RETENTION_DAYS', '14')),
   },
   aqara: {
     appId: env('AQARA_APP_ID'),

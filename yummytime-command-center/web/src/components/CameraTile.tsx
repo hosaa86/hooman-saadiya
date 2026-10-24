@@ -1,5 +1,5 @@
 import type { Device } from '../types';
-import { MockFeed } from './MockFeed';
+import { CameraFeed } from './CameraFeed';
 import { STATUS_DOT } from './ui';
 
 export function RecBadge({ large = false }: { large?: boolean }) {
@@ -21,7 +21,7 @@ export function CameraTile({ camera, onOpen }: { camera: Device; onOpen: () => v
       className="group overflow-hidden rounded-xl border border-zinc-200 bg-white text-left shadow-sm transition hover:shadow-md disabled:cursor-default dark:border-zinc-800 dark:bg-zinc-900"
     >
       <div className="relative aspect-video">
-        {show('live') && <MockFeed camera={camera} />}
+        {show('live') && <CameraFeed camera={camera} />}
         {show('rec') && recording && (
           <span className="absolute right-2 top-2">
             <RecBadge />

@@ -7,6 +7,8 @@ export interface Device {
   category: Category;
   kind: string;
   provider: string;
+  externalId: string | null;
+  channelId: string | null;
   name: string;
   sortOrder: number;
   visibleFields: string[];
@@ -17,6 +19,7 @@ export interface Device {
   lastValue: number | null;
   lastState: string | null;
   lastSeen: string | null;
+  snapshotAt: string | null;
 }
 
 export interface EventRow {
@@ -76,4 +79,14 @@ export interface Schedule {
 export interface DeviceMeta {
   fieldOptions: Record<Category, Record<string, string>>;
   kinds: Record<Category, string[]>;
+}
+
+export interface Recording {
+  id: number;
+  deviceId: number;
+  reason: string;
+  filePath: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  sizeBytes: number | null;
 }

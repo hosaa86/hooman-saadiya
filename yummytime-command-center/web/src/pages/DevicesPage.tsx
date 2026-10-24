@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Plus } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { Category, Device, DeviceMeta } from '../types';
@@ -56,15 +56,30 @@ export function DevicesPage({ devices, flash }: { devices: Device[]; flash: (msg
             count={list.length}
             action={
               adding !== category && (
-                <button
-                  onClick={() => {
-                    setAdding(category);
-                    setOpen(null);
-                  }}
-                  className="flex items-center gap-1 text-sm font-medium text-orange-600 hover:underline dark:text-orange-400"
-                >
-                  <Plus size={16} /> Add
-                </button>
+                <span className="flex items-center gap-4">
+                  {category === 'camera' && (
+                    <button
+                      onClick={() =>
+                        api
+                          .imouSync()
+                          .then((r) => flash(`IMOU: ${r.found} cameras found, ${r.added.length} added`))
+                          .catch((e) => flash(e.message))
+                      }
+                      className="flex items-center gap-1 text-sm font-medium text-zinc-600 hover:underline dark:text-zinc-300"
+                    >
+                      <RefreshCw size={14} /> Sync IMOU
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setAdding(category);
+                      setOpen(null);
+                    }}
+                    className="flex items-center gap-1 text-sm font-medium text-orange-600 hover:underline dark:text-orange-400"
+                  >
+                    <Plus size={16} /> Add
+                  </button>
+                </span>
               )
             }
           >
