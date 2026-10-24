@@ -90,3 +90,22 @@ export interface Recording {
   endedAt: string | null;
   sizeBytes: number | null;
 }
+
+export interface AqaraStatus {
+  configured: boolean;
+  region: string;
+  pollSec: number;
+  connected: boolean;
+  account: string | null;
+  expiresAt: string | null;
+  lastPollAt: string | null;
+  lastError: string | null;
+  deviceCount: number;
+}
+
+export interface AqaraResource {
+  resourceId: string;
+  name: string;
+  value: string | null;
+  time: string | null;
+}

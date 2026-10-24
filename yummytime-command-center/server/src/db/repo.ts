@@ -306,3 +306,96 @@ export function deleteMediaRows(recordingIds: number[], snapshotIds: number[]) {
     snapshotIds.forEach((id) => s.run(id));
   })();
 }
+
+// ---------------------------------------------------------------------------
+// Key/value settings
+// ---------------------------------------------------------------------------
+
+export function getSetting(key: string): string | null {
+  const r = db().prepare('SELECT value FROM app_settings WHERE key = ?').get(key) as { value: string } | undefined;
+  return r?.value ?? null;
+}
+
+export function setSetting(key: string, value: string | null) {
+  if (value === null) db().prepare('DELETE FROM app_settings WHERE key = ?').run(key);
+  else db().prepare('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, value);
+}
+
+export function lastReadingAt(deviceId: number): number {
+  const r = db().prepare('SELECT MAX(recorded_at) AS t FROM temperature_readings WHERE device_id = ?').get(deviceId) as { t: string | null };
+  return r.t ? new Date(iso(r.t)!).getTime() : 0;
+}
+
+// ---------------------------------------------------------------------------
+// Deviations ("avvik")
+// ---------------------------------------------------------------------------
+
+export interface Deviation {
+  id: number;
+  deviceId: number;
+  deviceName: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  peakValueC: number | null;
+  minLimit: number | null;
+  maxLimit: number | null;
+  severity: 'warning' | 'critical';
+  correctiveAction: string | null;
+  signedBy: string | null;
+  signedAt: string | null;
+}
+
+const toDeviation = (r: any): Deviation => ({
+  id: r.id,
+  deviceId: r.device_id,
+  deviceName: r.device_name ?? null,
+  startedAt: iso(r.started_at)!,
+  endedAt: iso(r.ended_at),
+  peakValueC: r.peak_value_c,
+  minLimit: r.min_limit,
+  maxLimit: r.max_limit,
+  severity: r.severity,
+  correctiveAction: r.corrective_action,
+  signedBy: r.signed_by,
+  signedAt: iso(r.signed_at),
+});
+
+/** `startedAt` is an ISO timestamp; stored in SQLite's UTC format like every other column. */
+export function openDeviation(deviceId: number, startedAt: string, peak: number, min: number, max: number, severity: string): number {
+  return Number(
+    db()
+      .prepare("INSERT INTO deviations (device_id, started_at, peak_value_c, min_limit, max_limit, severity) VALUES (?, datetime(?), ?, ?, ?, ?)")
+      .run(deviceId, startedAt, peak, min, max, severity).lastInsertRowid,
+  );
+}
+
+export const updateDeviationPeak = (id: number, peak: number) => db().prepare('UPDATE deviations SET peak_value_c = ? WHERE id = ?').run(peak, id);
+export const setDeviationSeverity = (id: number, severity: string) => db().prepare('UPDATE deviations SET severity = ? WHERE id = ?').run(severity, id);
+export const closeDeviation = (id: number) => db().prepare("UPDATE deviations SET ended_at = datetime('now') WHERE id = ? AND ended_at IS NULL").run(id);
+
+export function openDeviations(): Deviation[] {
+  return db().prepare('SELECT * FROM deviations WHERE ended_at IS NULL').all().map(toDeviation);
+}
+
+export function listDeviations(opts: { deviceIds?: number[]; from?: string; to?: string; limit?: number } = {}): Deviation[] {
+  const where: string[] = [];
+  const params: Record<string, unknown> = { limit: opts.limit ?? 500 };
+  if (opts.deviceIds?.length) where.push(`v.device_id IN (${opts.deviceIds.map(Number).join(',')})`);
+  if (opts.from) (where.push('COALESCE(v.ended_at, datetime(\'now\')) >= @from'), (params.from = opts.from));
+  if (opts.to) (where.push('v.started_at < @to'), (params.to = opts.to));
+  return db()
+    .prepare(
+      `SELECT v.*, d.name AS device_name FROM deviations v JOIN devices d ON d.id = v.device_id
+       ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY v.started_at DESC LIMIT @limit`,
+    )
+    .all(params)
+    .map(toDeviation);
+}
+
+export function signDeviation(id: number, correctiveAction: string, signedBy: string): Deviation | undefined {
+  db()
+    .prepare("UPDATE deviations SET corrective_action = ?, signed_by = ?, signed_at = datetime('now') WHERE id = ?")
+    .run(correctiveAction, signedBy, id);
+  const r = db().prepare('SELECT v.*, d.name AS device_name FROM deviations v JOIN devices d ON d.id = v.device_id WHERE v.id = ?').get(id);
+  return r ? toDeviation(r) : undefined;
+}

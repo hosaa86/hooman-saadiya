@@ -1,4 +1,4 @@
-import type { Alert, Category, DashboardData, Device, DeviceMeta, Location, Recording, Schedule } from './types';
+import type { Alert, AqaraResource, AqaraStatus, Category, DashboardData, Device, DeviceMeta, Location, Recording, Schedule } from './types';
 
 export const DEMO = import.meta.env.VITE_DEMO === '1';
 
@@ -41,5 +41,11 @@ export const api = {
   snapshot: (id: number) => req<Device>(`/cameras/${id}/snapshot`, {}),
   recordings: (deviceId: number) => req<Recording[]>(`/cameras/recordings?deviceId=${deviceId}`),
   imouSync: () => req<{ found: number; added: string[]; removedMock: number }>('/cameras/imou/sync', {}),
+  aqaraStatus: () => req<AqaraStatus>('/aqara/status'),
+  aqaraSendCode: (account: string) => req('/aqara/auth/code', { account }),
+  aqaraConnect: (account: string, code: string) => req<{ sync: { found: number; added: string[]; unsupported: string[] } }>('/aqara/auth/connect', { account, code }),
+  aqaraSync: () => req<{ found: number; added: string[]; unsupported: string[] }>('/aqara/sync', {}),
+  aqaraDisconnect: () => req('/aqara/disconnect', {}),
+  aqaraResources: (id: number) => req<AqaraResource[]>(`/aqara/devices/${id}/resources`),
   scenario: (name: 'smoke' | 'intrusion' | 'temperature' | 'reset') => req(`/mock/scenario/${name}`, {}),
 };

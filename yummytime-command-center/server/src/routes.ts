@@ -4,13 +4,16 @@ import * as repo from './db/repo.js';
 import { broadcast } from './ws.js';
 import { runScenario, type Scenario } from './mock/scenarios.js';
 import { devices, schedule } from './devices/routes.js';
+import { refreshArmedStatus } from './devices/ingest.js';
 import { ffmpegBinary } from './cameras/recorder.js';
 import { cameras } from './cameras/routes.js';
+import { aqaraRoutes } from './aqara/routes.js';
 
 export const api = Router();
 api.use('/devices', devices);
 api.use('/location/schedule', schedule);
 api.use('/cameras', cameras);
+api.use('/aqara', aqaraRoutes);
 
 api.get('/health', (_req, res) => {
   const location = repo.getLocation();
@@ -42,6 +45,7 @@ api.post('/location/arm', (req, res) => {
   const by = String(req.body?.by ?? 'Hooman');
   const location = repo.setArmed(armed, by);
   broadcast({ type: 'location', location });
+  refreshArmedStatus(location.id);
   broadcast({
     type: 'event',
     event: repo.addEvent(location.id, {

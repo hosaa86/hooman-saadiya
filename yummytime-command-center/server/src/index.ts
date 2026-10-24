@@ -7,6 +7,8 @@ import { attachWebSocket } from './ws.js';
 import { api } from './routes.js';
 import { startMockSimulator } from './mock/simulator.js';
 import { startImou } from './imou/sync.js';
+import { startAqara } from './aqara/sync.js';
+import { restoreTemperatureTracking } from './rules/temperature.js';
 import { cleanupOldMedia, syncContinuous } from './cameras/recorder.js';
 import * as repo from './db/repo.js';
 
@@ -19,7 +21,9 @@ app.use('/api', api);
 const server = http.createServer(app);
 attachWebSocket(server);
 
+restoreTemperatureTracking();
 if (config.mockMode) startMockSimulator();
+if (integrationStatus().aqara) startAqara();
 if (integrationStatus().imou) startImou();
 syncContinuous(repo.getLocation().id);
 cleanupOldMedia();

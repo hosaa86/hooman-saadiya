@@ -24,7 +24,9 @@ export function DetectorCard({ detector, locationArmed }: { detector: Device; lo
   // Smoke detectors are always active; door/vibration follow the location's armed state
   const alwaysOn = detector.kind === 'smoke';
   const armed = alwaysOn || (locationArmed && detector.settings.armedSchedule !== false);
-  const alarm = detector.lastState === 'smoke' || detector.lastState === 'open' || detector.lastState === 'vibration';
+  // Highlight only when it matters: an open door in the daytime is normal
+  const alarm =
+    (detector.lastState === 'smoke' || detector.lastState === 'open' || detector.lastState === 'vibration') && (detector.status === 'critical' || detector.status === 'warning');
 
   return (
     <Card status={detector.status}>

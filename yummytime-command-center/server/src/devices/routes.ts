@@ -46,6 +46,12 @@ devices.patch('/:id', (req, res) => {
       return res.status(400).json({ error: `Visible fields must be from: ${allowed.join(', ')}` });
   }
   let merged: Record<string, unknown> | undefined;
+  if (settings?.aqara !== undefined) {
+    const a = settings.aqara;
+    const strings = ['valueRes', 'stateRes', 'alarmValue', 'batteryRes'];
+    if (typeof a !== 'object' || a === null || !Object.entries(a).every(([k, v]) => (strings.includes(k) ? typeof v === 'string' : k === 'valueScale' ? typeof v === 'number' : k === 'batteryMode' ? v === 'percent' || v === 'mv' : false)))
+      return res.status(400).json({ error: 'Invalid Aqara resource mapping' });
+  }
   if (settings !== undefined) {
     const next = { ...defaultSettings(device.kind), ...device.settings, ...settings };
     const err = validateSettings(device.kind, next);

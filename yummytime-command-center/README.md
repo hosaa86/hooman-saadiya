@@ -165,6 +165,29 @@ npm run fake:imou -w server      # fake IMOU API + 4 live test streams on :4555
 and in `.env`: `IMOU_APP_ID=fake`, `IMOU_APP_SECRET=fake`, `IMOU_API_URL=http://localhost:4555/openapi`.
 Remove `IMOU_API_URL` again before using your real account.
 
+## Aqara (step 5)
+
+1. In `.env` set `AQARA_APP_ID`, `AQARA_KEY_ID`, `AQARA_APP_KEY` from the **approved "DEMO APPLICATION"**
+   project (a pending project returns error 2046), `AQARA_REGION=eu`. Restart.
+2. **Devices → Aqara account:** enter the Aqara account email/phone → **Send code** → enter the code → **Connect**.
+   Devices are imported (temperature, smoke, door/contact, vibration, hub) and replace the mock ones.
+   The login renews itself; it is stored in the local database, not in `.env`.
+3. Check each device: open it under Devices → *Aqara resources* → **Show live values**. The app guesses which
+   resource holds the temperature / open-closed / smoke / battery value; correct it there if needed.
+
+| | |
+|---|---|
+| Reading | All Aqara devices every `AQARA_POLL_SEC` (20 s) in one call; online state + hub links every 2 min |
+| Temperature log | Stored every *logging interval* per sensor (default 15 min) in `temperature_readings` with the limits at that time |
+| Deviations (avvik) | Out of range ≥ *warning after* → deviation opened (warning); ≥ *critical after* or past the *critical margin* → critical; closed when back in range |
+| Events | Smoke, door open/closed, vibration, offline/online, low battery → event feed (and the rules engine, step 6) |
+| New freezer | A new sensor reading below −10 °C starts with freezer limits (−25 to −18 °C) |
+
+Aqara pushes events only to a public callback URL, so this local app polls; alarms appear within ~20 s.
+
+Test without devices: `npm run fake:aqara -w server` and in `.env`: `AQARA_APP_ID=fake`, `AQARA_KEY_ID=fake`,
+`AQARA_APP_KEY=fake`, `AQARA_API_URL=http://localhost:4556` (login code `123456`).
+
 ## Shareable demo
 
 `npm run build:demo -w web` (Mac/Linux) builds `web/dist-demo/`: the dashboard with an in-browser simulated
@@ -176,6 +199,6 @@ backend (no server, no real devices), used for the shareable demo link.
 2. ✅ Dashboard UI with mock data
 3. ✅ Device settings & editing (mock data)
 4. ✅ IMOU integration (list, status, HLS live view proxy, recording)
-5. Aqara integration (sensors, detectors, 15-min logging)
+5. ✅ Aqara integration (sensors, detectors, 15-min logging)
 6. Rules engine + alerts/escalation (Twilio voice + WhatsApp)
 7. Compliance export (PDF/CSV temperature report)

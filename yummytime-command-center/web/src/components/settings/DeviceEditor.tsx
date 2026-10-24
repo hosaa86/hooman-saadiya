@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { api } from '../../api';
 import type { Device, DeviceMeta } from '../../types';
 import { Btn, Field, NumberInput, Segmented, Toggle, inputCls } from './fields';
+import { AqaraMappingEditor } from './AqaraMappingEditor';
 
 interface Props {
   device: Device;
@@ -153,6 +154,10 @@ export function DeviceEditor({ device, meta, linkedCount, onDone }: Props) {
             <p className="font-medium">{device.lastValue ?? linkedCount}</p>
           </div>
         </div>
+      )}
+
+      {device.provider === 'aqara' && device.category !== 'hub' && (
+        <AqaraMappingEditor device={device} value={settings.aqara ?? {}} onChange={(m) => set('aqara', m)} />
       )}
 
       <Field label="Show on card" group>

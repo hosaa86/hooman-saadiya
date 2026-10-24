@@ -35,6 +35,11 @@ export const config = {
     appKey: env('AQARA_APP_KEY'),
     region: env('AQARA_REGION', 'eu'),
     account: env('AQARA_ACCOUNT'),
+    /** Override only for testing (e.g. the fake Aqara server). */
+    apiUrl: env('AQARA_API_URL'),
+    /** How often detectors and sensors are read. Lower = faster alarms, more API calls. */
+    pollSec: Number(env('AQARA_POLL_SEC', '20')),
+    tokenValidity: env('AQARA_TOKEN_VALIDITY', '7d'),
   },
   twilio: {
     accountSid: env('TWILIO_ACCOUNT_SID'),

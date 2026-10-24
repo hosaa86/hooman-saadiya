@@ -6,6 +6,7 @@ import { Section, STATUS_DOT, temp } from '../components/ui';
 import { DeviceEditor } from '../components/settings/DeviceEditor';
 import { AddDeviceForm, KIND_LABEL } from '../components/settings/AddDeviceForm';
 import { ScheduleCard } from '../components/settings/ScheduleCard';
+import { AqaraCard } from '../components/settings/AqaraCard';
 
 const SECTIONS: { category: Category; title: string }[] = [
   { category: 'camera', title: 'Cameras' },
@@ -39,13 +40,16 @@ export function DevicesPage({ devices, flash }: { devices: Device[]; flash: (msg
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 p-4">
+    <div className="mx-auto max-w-4xl space-y-8 p-4">
       <div>
         <h2 className="text-xl font-semibold">Devices & settings</h2>
         <p className="text-sm text-zinc-500">Add, rename, reorder and configure the cards on the dashboard. Changes apply immediately.</p>
       </div>
 
-      <ScheduleCard onDone={flash} />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ScheduleCard onDone={flash} />
+        <AqaraCard flash={flash} />
+      </div>
 
       {SECTIONS.map(({ category, title }) => {
         const list = devices.filter((d) => d.category === category).sort((a, b) => a.sortOrder - b.sortOrder);
