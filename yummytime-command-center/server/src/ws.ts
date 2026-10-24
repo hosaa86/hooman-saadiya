@@ -1,12 +1,15 @@
 import type { Server } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
+import type { Alert, Device, EventRow, Location } from './types.js';
 
 export type ServerMessage =
   | { type: 'hello'; serverTime: string }
-  | { type: 'device_update'; device: unknown }
-  | { type: 'event'; event: unknown }
-  | { type: 'alert'; alert: unknown }
-  | { type: 'armed'; armed: boolean; by: string };
+  | { type: 'device_update'; device: Device }
+  | { type: 'event'; event: EventRow }
+  | { type: 'alert'; alert: Alert }
+  | { type: 'alerts_cleared' }
+  | { type: 'location'; location: Location }
+  | { type: 'open_live_view'; deviceIds: number[] };
 
 let wss: WebSocketServer | null = null;
 

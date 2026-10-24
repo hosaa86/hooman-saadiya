@@ -97,10 +97,28 @@ Device `settings` JSON per category:
 
 Seeded default rules: Smoke detected, Night intrusion, Temperature out of range, Device offline / low battery.
 
+## Mock mode (step 2)
+
+With `MOCK_MODE=true` the backend loads 15 mock devices (5 cameras, 4 temperature sensors,
+5 detectors, 1 hub), drifts temperatures every 5 s over WebSocket, and logs readings at each
+sensor's interval. The dashboard shows a **Simulate** panel:
+
+| Button          | What happens                                                         |
+|-----------------|----------------------------------------------------------------------|
+| Smoke           | Smoke detector → critical, all cameras REC, live view opens, red banner |
+| Night intrusion | Arms location, door opens → critical, cameras REC, live view         |
+| Fridge too warm | Sensor above limit → amber warning banner                            |
+| Reset all       | Clears alarms and returns devices to normal                          |
+
+To start over with fresh mock data, stop the app and delete the `data/` folder.
+
+API (used by the dashboard): `GET /api/dashboard`, `POST /api/location/arm`,
+`POST /api/alerts/:id/ack`, `POST /api/mock/scenario/:name`, WebSocket `/ws`.
+
 ## Build order
 
 1. ✅ Scaffold, `.env` template, SQLite schema, README
-2. Dashboard UI with mock data
+2. ✅ Dashboard UI with mock data
 3. Device settings & editing (mock data)
 4. IMOU integration (list, status, HLS live view proxy, recording)
 5. Aqara integration (sensors, detectors, 15-min logging)

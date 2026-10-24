@@ -4,27 +4,19 @@ import cors from 'cors';
 import { config, integrationStatus } from './config.js';
 import { getDb } from './db/index.js';
 import { attachWebSocket } from './ws.js';
+import { api } from './routes.js';
+import { startMockSimulator } from './mock/simulator.js';
 
-const db = getDb();
+getDb();
 const app = express();
 app.use(cors());
 app.use(express.json());
-
-app.get('/api/health', (_req, res) => {
-  const location = db.prepare('SELECT id, name, armed FROM locations WHERE name = ?').get(config.locationName);
-  const deviceCount = (db.prepare('SELECT COUNT(*) AS n FROM devices').get() as { n: number }).n;
-  res.json({
-    ok: true,
-    serverTime: new Date().toISOString(),
-    mockMode: config.mockMode,
-    location,
-    deviceCount,
-    integrations: integrationStatus(),
-  });
-});
+app.use('/api', api);
 
 const server = http.createServer(app);
 attachWebSocket(server);
+
+if (config.mockMode) startMockSimulator();
 
 server.listen(config.port, () => {
   console.log(`YummyTime Command Center server on http://localhost:${config.port}`);

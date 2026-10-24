@@ -1,68 +1,117 @@
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { api } from './api';
+import { useDashboard } from './useDashboard';
 import { useTheme } from './useTheme';
-
-type Health = {
-  ok: boolean;
-  mockMode: boolean;
-  location: { id: number; name: string; armed: number } | null;
-  deviceCount: number;
-  integrations: Record<string, boolean>;
-};
+import { useNow } from './useNow';
+import type { Alert } from './types';
+import { Header } from './components/Header';
+import { AlarmBanner } from './components/AlarmBanner';
+import { CameraTile } from './components/CameraTile';
+import { HubCard, SensorCard } from './components/SensorCard';
+import { DetectorCard } from './components/DetectorCard';
+import { EventFeed } from './components/EventFeed';
+import { LiveViewModal } from './components/LiveViewModal';
+import { DemoPanel } from './components/DemoPanel';
+import { Section } from './components/ui';
 
 export default function App() {
   const { theme, toggle } = useTheme();
-  const [health, setHealth] = useState<Health | null>(null);
-  const [wsState, setWsState] = useState<'connecting' | 'open' | 'closed'>('connecting');
+  const [liveView, setLiveView] = useState<number[] | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const { data, connected, history } = useDashboard(setLiveView);
+  useNow(15_000); // refresh "x min ago" labels
 
-  useEffect(() => {
-    fetch('/api/health')
-      .then((r) => r.json())
-      .then(setHealth)
-      .catch(() => setHealth(null));
+  const groups = useMemo(() => {
+    const d = data?.devices ?? [];
+    const by = (c: string) => d.filter((x) => x.category === c).sort((a, b) => a.sortOrder - b.sortOrder);
+    return { cameras: by('camera'), sensors: by('sensor'), detectors: by('detector'), hubs: by('hub') };
+  }, [data?.devices]);
 
-    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
-    ws.onopen = () => setWsState('open');
-    ws.onclose = () => setWsState('closed');
-    return () => ws.close();
-  }, []);
+  if (!data) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-500 dark:bg-zinc-950">
+        Connecting to local server…
+      </div>
+    );
+  }
+
+  const flash = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3500);
+  };
+  const onlineCams = groups.cameras.filter((c) => c.online).map((c) => c.id);
+  const onCallBack = (a: Alert) => flash(`Call-back for "${a.title}" — Twilio calling arrives in step 6.`);
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
-      <header className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-zinc-500">YummyTime Command Center</p>
-          <h1 className="text-lg font-semibold">{health?.location?.name ?? 'Yummy Time Capsule'}</h1>
+      <Header
+        location={data.location}
+        devices={data.devices}
+        connected={connected}
+        theme={theme}
+        onToggleTheme={toggle}
+        onToggleArmed={() => api.setArmed(!data.location.armed)}
+      />
+
+      <main className="mx-auto grid max-w-7xl gap-6 p-4 lg:grid-cols-[1fr_340px]">
+        <div className="space-y-6">
+          <AlarmBanner alerts={data.alerts} onLiveView={() => setLiveView(onlineCams)} onAck={(id) => api.ack(id)} onCallBack={onCallBack} />
+
+          <Section
+            title="Cameras"
+            count={groups.cameras.length}
+            action={
+              <button onClick={() => setLiveView(onlineCams)} className="text-sm font-medium text-orange-600 hover:underline dark:text-orange-400">
+                View all live
+              </button>
+            }
+          >
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+              {groups.cameras.map((c) => (
+                <CameraTile key={c.id} camera={c} onOpen={() => setLiveView([c.id])} />
+              ))}
+            </div>
+          </Section>
+
+          <Section title="Sensors & Hub" count={groups.sensors.length + groups.hubs.length}>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {groups.sensors.map((s) => (
+                <SensorCard key={s.id} sensor={s} history={history[s.id] ?? []} />
+              ))}
+              {groups.hubs.map((h) => (
+                <HubCard key={h.id} hub={h} deviceCount={groups.sensors.length + groups.detectors.length} />
+              ))}
+            </div>
+          </Section>
+
+          <Section title="Detectors" count={groups.detectors.length}>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {groups.detectors.map((d) => (
+                <DetectorCard key={d.id} detector={d} locationArmed={data.location.armed} />
+              ))}
+            </div>
+          </Section>
         </div>
-        <button
-          onClick={toggle}
-          className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
-        >
-          {theme === 'dark' ? 'Light' : 'Dark'}
-        </button>
-      </header>
 
-      <main className="mx-auto max-w-3xl space-y-3 p-4">
-        <p className="text-sm text-zinc-500">Step 1 scaffold — dashboard UI arrives in step 2.</p>
-        <Row label="Backend API" ok={!!health?.ok} />
-        <Row label="WebSocket" ok={wsState === 'open'} detail={wsState} />
-        <Row label="Mock mode" ok={!!health?.mockMode} detail={health?.mockMode ? 'on' : 'off'} />
-        {health &&
-          Object.entries(health.integrations).map(([k, v]) => (
-            <Row key={k} label={`${k} credentials`} ok={v} detail={v ? 'set' : 'missing in .env'} />
-          ))}
+        <aside className="space-y-4 lg:sticky lg:top-28 lg:self-start">
+          {data.mockMode && <DemoPanel />}
+          <Section title="Live events" count={data.events.length}>
+            <div className="lg:max-h-[calc(100vh-16rem)] lg:overflow-auto lg:rounded-xl">
+              <EventFeed events={data.events} />
+            </div>
+          </Section>
+        </aside>
       </main>
-    </div>
-  );
-}
 
-function Row({ label, ok, detail }: { label: string; ok: boolean; detail?: string }) {
-  return (
-    <div className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
-      <span className="text-sm">{label}</span>
-      <span className="flex items-center gap-2 text-sm text-zinc-500">
-        {detail}
-        <span className={`h-2.5 w-2.5 rounded-full ${ok ? 'bg-green-500' : 'bg-zinc-400'}`} />
-      </span>
+      {liveView && (
+        <LiveViewModal cameras={data.devices.filter((d) => liveView.includes(d.id))} onClose={() => setLiveView(null)} />
+      )}
+
+      {toast && (
+        <div className="fixed inset-x-4 bottom-4 z-40 mx-auto max-w-md rounded-xl bg-zinc-900 px-4 py-3 text-sm text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
