@@ -21,6 +21,7 @@ export function DeviceEditor({ device, meta, linkedCount, onDone }: Props) {
   });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const set = (k: string, v: unknown) => setSettings((s) => ({ ...s, [k]: v }));
   const options = meta.fieldOptions[device.category];
@@ -39,7 +40,11 @@ export function DeviceEditor({ device, meta, linkedCount, onDone }: Props) {
   };
 
   const remove = async () => {
-    if (!confirm(`Remove "${device.name}" from the dashboard?`)) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      setTimeout(() => setConfirmDelete(false), 4000);
+      return;
+    }
     try {
       const { result } = await api.deleteDevice(device.id);
       onDone(result === 'archived' ? `${device.name} removed — its temperature log is kept for Mattilsynet` : `${device.name} removed`);
@@ -185,7 +190,7 @@ export function DeviceEditor({ device, meta, linkedCount, onDone }: Props) {
         )}
         <span className="flex-1" />
         <Btn variant="danger" onClick={remove}>
-          <Trash2 size={16} /> Delete
+          <Trash2 size={16} /> {confirmDelete ? 'Tap again to delete' : 'Delete'}
         </Btn>
       </div>
     </div>

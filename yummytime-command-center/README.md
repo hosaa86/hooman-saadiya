@@ -165,6 +165,11 @@ npm run fake:imou -w server      # fake IMOU API + 4 live test streams on :4555
 and in `.env`: `IMOU_APP_ID=fake`, `IMOU_APP_SECRET=fake`, `IMOU_API_URL=http://localhost:4555/openapi`.
 Remove `IMOU_API_URL` again before using your real account.
 
+## Shareable demo
+
+`npm run build:demo -w web` (Mac/Linux) builds `web/dist-demo/`: the dashboard with an in-browser simulated
+backend (no server, no real devices), used for the shareable demo link.
+
 ## Build order
 
 1. ✅ Scaffold, `.env` template, SQLite schema, README

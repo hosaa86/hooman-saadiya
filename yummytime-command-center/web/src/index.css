@@ -4,3 +4,5 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 html, body, #root { min-height: 100%; }
+body { background: var(--color-zinc-50); }
+html.dark body { background: var(--color-zinc-950); }

@@ -1,5 +1,5 @@
 import { FlaskConical } from 'lucide-react';
-import { api } from '../api';
+import { api, DEMO } from '../api';
 
 const BUTTONS = [
   { name: 'smoke', label: 'Smoke' },
@@ -13,8 +13,9 @@ export function DemoPanel() {
   return (
     <div className="rounded-xl border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
       <p className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-zinc-500">
-        <FlaskConical size={14} /> Mock mode · simulate
+        <FlaskConical size={14} /> {DEMO ? 'Demo · simulated data' : 'Mock mode · simulate'}
       </p>
+      {DEMO && <p className="mb-2 text-xs text-zinc-500">Try an alarm, then open the Devices tab to edit cards. Nothing here calls or messages anyone.</p>}
       <div className="flex flex-wrap gap-2">
         {BUTTONS.map((b) => (
           <button

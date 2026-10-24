@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api } from './api';
+import { api, DEMO } from './api';
 import type { DashboardData, ServerMessage } from './types';
 
 const HISTORY = 40;
@@ -61,6 +61,20 @@ export function useDashboard(onOpenLiveView: (ids: number[]) => void) {
       });
     };
 
+    if (DEMO) {
+      // The demo backend runs in the page: subscribe instead of opening a WebSocket
+      let unsub = () => {};
+      import('./demo/demoServer').then(({ subscribe }) => {
+        if (closed) return;
+        unsub = subscribe(handle);
+        setConnected(true);
+        load();
+      });
+      return () => {
+        closed = true;
+        unsub();
+      };
+    }
     connect();
     return () => {
       closed = true;

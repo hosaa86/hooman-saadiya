@@ -8,6 +8,8 @@ export function useTheme() {
       const saved = localStorage.getItem('theme') as Theme | null;
       if (saved) return saved;
     } catch {}
+    const host = document.documentElement.dataset.theme;
+    if (host === 'dark' || host === 'light') return host;
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
 

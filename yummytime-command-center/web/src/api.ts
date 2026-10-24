@@ -1,6 +1,12 @@
 import type { Alert, Category, DashboardData, Device, DeviceMeta, Location, Recording, Schedule } from './types';
 
+export const DEMO = import.meta.env.VITE_DEMO === '1';
+
 async function req<T>(path: string, body?: unknown, method?: string): Promise<T> {
+  if (DEMO) {
+    const { handle } = await import('./demo/demoServer');
+    return handle(method ?? (body === undefined ? 'GET' : 'POST'), path, body);
+  }
   const res = await fetch(`/api${path}`, {
     method: method ?? (body === undefined ? 'GET' : 'POST'),
     headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },

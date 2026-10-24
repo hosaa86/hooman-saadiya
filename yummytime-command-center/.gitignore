@@ -13,3 +13,4 @@ snapshots/
 *.log
 .DS_Store
 *.tsbuildinfo
+dist-demo/
