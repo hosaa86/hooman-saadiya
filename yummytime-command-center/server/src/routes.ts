@@ -5,6 +5,7 @@ import { runScenario, type Scenario } from './mock/scenarios.js';
 import { devices, schedule } from './devices/routes.js';
 import { armLocation } from './rules/scheduler.js';
 import { alertsApi } from './alerts/routes.js';
+import { reports } from './reports/routes.js';
 import { ffmpegBinary } from './cameras/recorder.js';
 import { cameras } from './cameras/routes.js';
 import { aqaraRoutes } from './aqara/routes.js';
@@ -14,6 +15,7 @@ api.use('/devices', devices);
 api.use('/location/schedule', schedule);
 api.use('/cameras', cameras);
 api.use('/aqara', aqaraRoutes);
+api.use('/reports', reports);
 api.use('/', alertsApi);
 
 api.get('/health', (_req, res) => {

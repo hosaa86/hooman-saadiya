@@ -1,4 +1,4 @@
-import type { Alert, AlertSetup, AlertWithLog, AqaraResource, Contact, Rule, AqaraStatus, Category, DashboardData, Device, DeviceMeta, Location, Recording, Schedule } from './types';
+import type { Alert, AlertSetup, AlertWithLog, AqaraResource, Contact, Deviation, ReportSensor, Rule, SensorSummary, AqaraStatus, Category, DashboardData, Device, DeviceMeta, Location, Recording, Schedule } from './types';
 
 export const DEMO = import.meta.env.VITE_DEMO === '1';
 
@@ -56,5 +56,9 @@ export const api = {
   deleteRule: (id: number) => req(`/rules/${id}`, undefined, 'DELETE'),
   alertLog: () => req<AlertWithLog[]>('/alerts'),
   alertSetup: () => req<AlertSetup>('/alerts/setup'),
+  reportSensors: () => req<ReportSensor[]>('/reports/sensors'),
+  reportSummary: (q: string) => req<SensorSummary[]>(`/reports/summary?${q}`),
+  deviations: (q: string) => req<Deviation[]>(`/reports/deviations?${q}`),
+  signDeviation: (id: number, correctiveAction: string, signedBy: string) => req<Deviation>(`/reports/deviations/${id}`, { correctiveAction, signedBy }, 'PUT'),
   scenario: (name: 'smoke' | 'intrusion' | 'temperature' | 'reset') => req(`/mock/scenario/${name}`, {}),
 };

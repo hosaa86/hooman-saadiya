@@ -218,6 +218,23 @@ nothing is sent: attempts are logged as *simulated* so you can test the whole fl
    address and **set `APP_PASSWORD`**. In the Twilio console set the WhatsApp sender's incoming-message URL to
    `<PUBLIC_BASE_URL>/api/twilio/whatsapp`. Webhooks are checked with Twilio's signature.
 
+## Temperature reports for Mattilsynet (step 7)
+
+**Reports tab:** choose sensors (removed sensors stay available, so their log is never lost) and a period.
+
+| Download | Contents |
+|---|---|
+| **PDF** (Norwegian) | Per sensor: limits and logging interval; readings, lowest / highest / average, % within limits; daily overview (*døgnoversikt*); every deviation with duration, peak, corrective action (*tiltak*) and who signed; signature line. *Every reading* adds the full log. |
+| **Readings (CSV)** | Dato; Tid; Sensor; Temperatur; Min/Maks grense; Innenfor grense. Semicolon + decimal comma, opens directly in Norwegian Excel. |
+| **Deviations (CSV)** | Every avvik with start/end, peak, severity, tiltak, signed by. |
+
+**Deviations (avvik):** a deviation opens when a sensor has been outside its limits for the sensor's *warning after* time,
+and closes when it is back in range. On the Reports tab, write the corrective action and sign each one; unsigned
+deviations are marked red in the PDF. All times are Norwegian time (`TZ=Europe/Oslo`).
+
+API: `GET /api/reports/temperature.pdf|.csv?devices=1,2&from=YYYY-MM-DD&to=YYYY-MM-DD[&detail=all][&kind=deviations]`,
+`GET /api/reports/summary`, `GET /api/reports/deviations`, `PUT /api/reports/deviations/:id`.
+
 ## Shareable demo
 
 `npm run build:demo -w web` (Mac/Linux) builds `web/dist-demo/`: the dashboard with an in-browser simulated
@@ -231,4 +248,4 @@ backend (no server, no real devices), used for the shareable demo link.
 4. ✅ IMOU integration (list, status, HLS live view proxy, recording)
 5. ✅ Aqara integration (sensors, detectors, 15-min logging)
 6. ✅ Rules engine + alerts/escalation (Twilio voice + WhatsApp)
-7. Compliance export (PDF/CSV temperature report)
+7. ✅ Compliance export (PDF/CSV temperature report)

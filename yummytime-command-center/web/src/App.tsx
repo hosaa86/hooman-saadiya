@@ -15,6 +15,7 @@ import { DemoPanel } from './components/DemoPanel';
 import { Section } from './components/ui';
 import { DevicesPage } from './pages/DevicesPage';
 import { AlertsPage } from './pages/AlertsPage';
+import { ReportsPage } from './pages/ReportsPage';
 import { CallBackSheet } from './components/CallBackSheet';
 import { PAGES, type Page } from './components/Header';
 
@@ -78,6 +79,8 @@ export default function App() {
         <DevicesPage devices={data.devices} flash={flash} />
       ) : page === 'alerts' ? (
         <AlertsPage alerts={data.alerts} flash={flash} />
+      ) : page === 'reports' ? (
+        <ReportsPage flash={flash} />
       ) : (
         <main className="mx-auto grid max-w-7xl gap-6 p-4 lg:grid-cols-[1fr_340px]">
           <div className="space-y-6">

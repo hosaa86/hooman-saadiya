@@ -159,3 +159,31 @@ export interface AqaraResource {
   value: string | null;
   time: string | null;
 }
+
+export interface Deviation {
+  id: number;
+  deviceId: number;
+  deviceName: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  peakValueC: number | null;
+  minLimit: number | null;
+  maxLimit: number | null;
+  severity: 'warning' | 'critical';
+  correctiveAction: string | null;
+  signedBy: string | null;
+  signedAt: string | null;
+}
+
+export interface SensorSummary {
+  device: { id: number; name: string; archived: boolean; settings: Record<string, any> };
+  min: number | null;
+  max: number | null;
+  avg: number | null;
+  count: number;
+  inRangePct: number | null;
+  days: { day: string; min: number; max: number; avg: number; count: number; outOfRange: number }[];
+  deviations: Deviation[];
+}
+
+export type ReportSensor = Device & { archived: boolean };

@@ -573,3 +573,42 @@ export function saveRule(locationId: number, r: Omit<Rule, 'id' | 'sortOrder'> &
 }
 
 export const deleteRule = (id: number) => db().prepare('DELETE FROM rules WHERE id = ?').run(id);
+
+// ---------------------------------------------------------------------------
+// Reports
+// ---------------------------------------------------------------------------
+
+export interface ReadingRow {
+  deviceId: number;
+  valueC: number;
+  minLimit: number | null;
+  maxLimit: number | null;
+  inRange: boolean;
+  recordedAt: string;
+}
+
+/** Temperature sensors that have (or had) logs, including removed ones — the log must stay reportable. */
+export function reportSensors(locationId: number): (Device & { archived: boolean })[] {
+  return db()
+    .prepare(
+      `SELECT *, ${SNAPSHOT_AT}, archived_at IS NOT NULL AS archived FROM devices
+       WHERE location_id = ? AND kind = 'temperature'
+         AND (archived_at IS NULL OR EXISTS (SELECT 1 FROM temperature_readings t WHERE t.device_id = devices.id))
+       ORDER BY archived_at IS NOT NULL, sort_order, id`,
+    )
+    .all(locationId)
+    .map((r: any) => ({ ...toDevice(r), archived: !!r.archived }));
+}
+
+/** fromUtc/toUtc in SQLite format 'YYYY-MM-DD HH:MM:SS'. */
+export function readings(deviceIds: number[], fromUtc: string, toUtc: string): ReadingRow[] {
+  if (deviceIds.length === 0) return [];
+  return db()
+    .prepare(
+      `SELECT device_id, value_c, min_limit, max_limit, in_range, recorded_at FROM temperature_readings
+       WHERE device_id IN (${deviceIds.map(Number).join(',')}) AND recorded_at >= ? AND recorded_at < ?
+       ORDER BY device_id, recorded_at`,
+    )
+    .all(fromUtc, toUtc)
+    .map((r: any) => ({ deviceId: r.device_id, valueC: r.value_c, minLimit: r.min_limit, maxLimit: r.max_limit, inRange: !!r.in_range, recordedAt: iso(r.recorded_at)! }));
+}
